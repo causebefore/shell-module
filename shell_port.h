@@ -1,10 +1,10 @@
 #ifndef __SHELL_PORT_H
 #define __SHELL_PORT_H
 
+#include "bsp_usart.h" /* 根据实际硬件修改头文件 */
 #include "shell.h"
 #include <stdio.h>
 #include <string.h>
-#include "bsp_usart.h" /* 根据实际硬件修改头文件 */
 
 void my_shell_init(void);
 void my_shell_task(void);

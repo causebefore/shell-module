@@ -66,12 +66,11 @@ static const shell_cmd_t user_commands[] = {
  * - 不要手动修改此数组，请在上面的 user_commands[] 中添加命令
  */
 #define MAX_BUILTIN_COMMANDS 10 /* 内置命令最大数量（预留） */
-static shell_cmd_t shell_commands_merged[MAX_BUILTIN_COMMANDS +
-                                         sizeof(user_commands) / sizeof(shell_cmd_t)];
+static shell_cmd_t shell_commands_merged[MAX_BUILTIN_COMMANDS + sizeof(user_commands) / sizeof(shell_cmd_t)];
 
 /* 导出的命令列表指针和数量 */
-const shell_cmd_t *shell_commands = NULL;
-uint16_t shell_cmd_count = 0;
+const shell_cmd_t *shell_commands  = NULL;
+uint16_t           shell_cmd_count = 0;
 
 /**
  * @brief 初始化命令列表（合并内置命令和用户命令）
@@ -79,9 +78,9 @@ uint16_t shell_cmd_count = 0;
  */
 void shell_commands_init(void)
 {
-    uint16_t index = 0;
-    uint16_t i;
-    uint16_t builtin_count = 0;
+    uint16_t           index = 0;
+    uint16_t           i;
+    uint16_t           builtin_count = 0;
     const shell_cmd_t *builtin_list;
 
     /* 获取内置命令列表 */
@@ -100,6 +99,6 @@ void shell_commands_init(void)
     }
 
     /* 设置导出变量 */
-    shell_commands = shell_commands_merged;
+    shell_commands  = shell_commands_merged;
     shell_cmd_count = index;
 }

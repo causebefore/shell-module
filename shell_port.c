@@ -62,7 +62,7 @@ static void shell_write_impl(const char *data, uint16_t len)
  */
 static int shell_read_impl(char *data, uint16_t len)
 {
-    (void)len; /* 未使用的参数 */
+    (void) len; /* 未使用的参数 */
 
     //    /* 示例: 轮询模式 - STM32标准库实现 */
     //    if (USART_GetFlagStatus(DEBUG_USARTx, USART_FLAG_RXNE) != RESET)
@@ -91,18 +91,13 @@ static int shell_read_impl(char *data, uint16_t len)
     return 0; /* 无数据 */
 }
 shell_t g_shell_usart1;
-void my_shell_init(void)
+void    my_shell_init(void)
 {
     // 1. 初始化命令列表
     shell_commands_init();
 
     // 2. 初始化Shell实例
-    shell_init_ex(&g_shell_usart1,
-                  "RTTShell",
-                  shell_commands,
-                  shell_cmd_count,
-                  shell_write_impl,
-                  shell_read_impl);
+    shell_init_ex(&g_shell_usart1, "RTTShell", shell_commands, shell_cmd_count, shell_write_impl, shell_read_impl);
 }
 
 void my_shell_task(void)

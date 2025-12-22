@@ -19,9 +19,9 @@
  *****************************************************************************/
 
 #include "shell.h"
-#include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 /* ===========================================================================
  *                       多Shell实例管理(全局变量)
@@ -33,7 +33,7 @@
  * @note 支持同时管理多个Shell实例(UART/USB/TCP等)
  */
 static shell_t *g_shell_instances[SHELL_MAX_INSTANCES] = {NULL};
-static int g_shell_count = 0; /**< 当前已注册的Shell实例数量 */
+static int      g_shell_count                          = 0; /**< 当前已注册的Shell实例数量 */
 #else
 /**
  * @brief 单Shell实例指针
@@ -52,18 +52,17 @@ static shell_t *g_current_shell = NULL;
  * @brief 全局用户列表指针
  * @note 指向ROM中的用户数组，由shell_user_init()设置
  */
-static const shell_user_t *g_users = NULL;
-static uint16_t g_user_count = 0;
+static const shell_user_t *g_users      = NULL;
+static uint16_t            g_user_count = 0;
 
 /**
  * @brief 默认管理员用户(编译时定义)
  * @note 当未调用shell_user_init()时使用此用户
  */
-static const shell_user_t g_default_user = {
-    .username = SHELL_DEFAULT_USERNAME,
-    .password = SHELL_DEFAULT_PASSWORD,
-    .auth_level = SHELL_DEFAULT_AUTH,
-    .description = "Default administrator account"};
+static const shell_user_t g_default_user = {.username    = SHELL_DEFAULT_USERNAME,
+                                            .password    = SHELL_DEFAULT_PASSWORD,
+                                            .auth_level  = SHELL_DEFAULT_AUTH,
+                                            .description = "Default administrator account"};
 
 #endif /* SHELL_USING_AUTH */
 
@@ -71,10 +70,10 @@ static const shell_user_t g_default_user = {
  *                          ANSI控制序列定义
  * ===========================================================================*/
 
-#define ANSI_CLEAR_LINE "\033[2K\r"       /**< 清除当前行 */
+#define ANSI_CLEAR_LINE   "\033[2K\r"     /**< 清除当前行 */
 #define ANSI_CLEAR_SCREEN "\033[2J\033[H" /**< 清屏并移动到左上角 */
-#define ANSI_MOVE_LEFT "\033[1D"          /**< 光标左移一格 */
-#define ANSI_MOVE_RIGHT "\033[1C"         /**< 光标右移一格 */
+#define ANSI_MOVE_LEFT    "\033[1D"       /**< 光标左移一格 */
+#define ANSI_MOVE_RIGHT   "\033[1C"       /**< 光标右移一格 */
 
 /* ===========================================================================
  *                          基础输出函数
@@ -101,7 +100,7 @@ void shell_print(shell_t *shell, const char *str)
  */
 void shell_printf(shell_t *shell, const char *format, ...)
 {
-    char buffer[256];
+    char    buffer[256];
     va_list args;
 
     va_start(args, format);
@@ -126,9 +125,7 @@ static void shell_show_prompt(shell_t *shell)
     if (shell->current_user != NULL)
     {
         char prompt[64];
-        snprintf(prompt, sizeof(prompt), "%s@%s> ",
-                 shell->current_user->username,
-                 shell->name ? shell->name : "shell");
+        snprintf(prompt, sizeof(prompt), "%s@%s> ", shell->current_user->username, shell->name ? shell->name : "shell");
         shell_print(shell, prompt);
     }
     else
@@ -212,7 +209,7 @@ void shell_cmd_exit_passthrough(shell_t *shell)
         return;
     }
 
-    shell->status.passthrough = 0;
+    shell->status.passthrough  = 0;
     shell->passthrough_handler = NULL;
 
     shell_printf(shell, "\r\n[Passthrough mode OFF]\r\n");
@@ -254,7 +251,7 @@ void shell_init(shell_t *shell, const shell_cmd_t *cmd_list, uint16_t cmd_count)
     memset(shell, 0, sizeof(shell_t));
 
     /* 设置命令列表 */
-    shell->cmd_list = cmd_list;
+    shell->cmd_list  = cmd_list;
     shell->cmd_count = cmd_count;
 
     /* 设置默认名称 */
@@ -285,10 +282,10 @@ void shell_init(shell_t *shell, const shell_cmd_t *cmd_list, uint16_t cmd_count)
  *   shell_init_ex(&my_shell, "UART1", shell_commands, shell_cmd_count,
  *                 write, read);
  */
-void shell_init_ex(shell_t *shell,
-                   const char *name,
+void shell_init_ex(shell_t           *shell,
+                   const char        *name,
                    const shell_cmd_t *cmd_list,
-                   uint16_t cmd_count,
+                   uint16_t           cmd_count,
                    void (*write_func)(const char *data, uint16_t len),
                    int (*read_func)(char *data, uint16_t len))
 {
@@ -308,7 +305,7 @@ void shell_init_ex(shell_t *shell,
 
     /* 设置IO函数 */
     shell->write = write_func;
-    shell->read = read_func;
+    shell->read  = read_func;
 
 #if SHELL_USING_MULTI_INSTANCE
     /* 自动注册到管理器 */
@@ -332,7 +329,7 @@ void shell_set_io(shell_t *shell,
     if (shell != NULL)
     {
         shell->write = write_func;
-        shell->read = read_func;
+        shell->read  = read_func;
     }
 }
 
@@ -355,7 +352,7 @@ void shellAdd(shell_t *shell, const char *name)
     {
         if (g_shell_instances[i] == NULL)
         {
-            shell->name = name;
+            shell->name          = name;
             g_shell_instances[i] = shell;
             g_shell_count++;
             return;
@@ -400,8 +397,7 @@ shell_t *shellGetCurrent(void)
 {
     for (int i = 0; i < SHELL_MAX_INSTANCES; i++)
     {
-        if (g_shell_instances[i] != NULL &&
-            g_shell_instances[i]->status.isActive)
+        if (g_shell_instances[i] != NULL && g_shell_instances[i]->status.isActive)
         {
             return g_shell_instances[i];
         }
@@ -423,8 +419,7 @@ shell_t *shellGetByName(const char *name)
 
     for (int i = 0; i < SHELL_MAX_INSTANCES; i++)
     {
-        if (g_shell_instances[i] != NULL &&
-            g_shell_instances[i]->name != NULL &&
+        if (g_shell_instances[i] != NULL && g_shell_instances[i]->name != NULL &&
             strcmp(g_shell_instances[i]->name, name) == 0)
         {
             return g_shell_instances[i];
@@ -452,7 +447,7 @@ int shell_get_count(void)
  */
 void shellAdd(shell_t *shell, const char *name)
 {
-    (void)name;
+    (void) name;
     g_current_shell = shell;
 }
 
@@ -484,7 +479,7 @@ shell_t *shellGetCurrent(void)
  */
 shell_t *shellGetByName(const char *name)
 {
-    (void)name;
+    (void) name;
     return g_current_shell;
 }
 
@@ -511,7 +506,7 @@ int shell_get_count(void)
  */
 static int shell_default_password_verify(const char *username, const char *password, const char *stored_password)
 {
-    (void)username; /* 未使用的参数 */
+    (void) username; /* 未使用的参数 */
     return strcmp(password, stored_password);
 }
 
@@ -541,13 +536,13 @@ void shell_set_password_verify(shell_t *shell, shell_password_verify_t verify_fu
 void shell_user_init(const shell_user_t *users, uint16_t user_count)
 {
     /* 默认用户始终指向g_default_user，确保有后备账户 */
-    g_users = &g_default_user;
+    g_users      = &g_default_user;
     g_user_count = 1;
 
     /* 如果提供了自定义用户列表，则使用自定义列表 */
     if (users != NULL && user_count > 0)
     {
-        g_users = users;
+        g_users      = users;
         g_user_count = user_count;
     }
 }
@@ -569,7 +564,7 @@ int shell_login(shell_t *shell, const char *username, const char *password)
     /* 如果未初始化用户系统，自动使用默认用户 */
     if (g_users == NULL || g_user_count == 0)
     {
-        g_users = &g_default_user;
+        g_users      = &g_default_user;
         g_user_count = 1;
     }
 
@@ -588,8 +583,8 @@ int shell_login(shell_t *shell, const char *username, const char *password)
             if (shell->password_verify(username, password, g_users[i].password) == 0)
             {
                 shell->current_user = &g_users[i];
-                shell->login_state = 3; /* 已登录 */
-                shell->login_tries = 0;
+                shell->login_state  = 3; /* 已登录 */
+                shell->login_tries  = 0;
                 return 0;
             }
             else
@@ -609,8 +604,8 @@ int shell_login(shell_t *shell, const char *username, const char *password)
             if (shell->password_verify(username, password, g_default_user.password) == 0)
             {
                 shell->current_user = &g_default_user;
-                shell->login_state = 3;
-                shell->login_tries = 0;
+                shell->login_state  = 3;
+                shell->login_tries  = 0;
                 return 0;
             }
         }
@@ -633,13 +628,13 @@ void shell_logout(shell_t *shell)
     }
 
     shell->current_user = NULL;
-    shell->login_state = 0; /* 返回未登录状态 */
-    shell->login_tries = 0;
+    shell->login_state  = 0; /* 返回未登录状态 */
+    shell->login_tries  = 0;
     memset(shell->password_buffer, 0, sizeof(shell->password_buffer));
 
     /* 清空命令缓冲区 */
-    shell->cmd_len = 0;
-    shell->cmd_pos = 0;
+    shell->cmd_len       = 0;
+    shell->cmd_pos       = 0;
     shell->cmd_buffer[0] = '\0';
 }
 
@@ -697,16 +692,16 @@ const char *shell_get_auth_name(shell_auth_level_t level)
 {
     switch (level)
     {
-    case SHELL_AUTH_GUEST:
-        return "Guest";
-    case SHELL_AUTH_USER:
-        return "User";
-    case SHELL_AUTH_ADMIN:
-        return "Admin";
-    case SHELL_AUTH_ROOT:
-        return "Root";
-    default:
-        return "Unknown";
+        case SHELL_AUTH_GUEST:
+            return "Guest";
+        case SHELL_AUTH_USER:
+            return "User";
+        case SHELL_AUTH_ADMIN:
+            return "Admin";
+        case SHELL_AUTH_ROOT:
+            return "Root";
+        default:
+            return "Unknown";
     }
 }
 
@@ -796,7 +791,7 @@ static const char *shell_get_history(shell_t *shell, int direction)
  */
 static void shell_show_commands(shell_t *shell, const char *prefix, uint8_t show_tips)
 {
-    uint16_t prefix_len = (prefix != NULL) ? strlen(prefix) : 0;
+    uint16_t prefix_len  = (prefix != NULL) ? strlen(prefix) : 0;
     uint16_t match_count = 0;
 
     /* 统计匹配数量 */
@@ -830,10 +825,7 @@ static void shell_show_commands(shell_t *shell, const char *prefix, uint8_t show
         if (prefix == NULL || strncmp(shell->cmd_list[i].name, prefix, prefix_len) == 0)
         {
             const char *auth_str = shell_get_auth_name(shell->cmd_list[i].auth_level);
-            shell_printf(shell, "  %-16s   %-8s   %s\r\n",
-                         shell->cmd_list[i].name,
-                         auth_str,
-                         shell->cmd_list[i].desc);
+            shell_printf(shell, "  %-16s   %-8s   %s\r\n", shell->cmd_list[i].name, auth_str, shell->cmd_list[i].desc);
         }
     }
 #else
@@ -843,9 +835,7 @@ static void shell_show_commands(shell_t *shell, const char *prefix, uint8_t show
     {
         if (prefix == NULL || strncmp(shell->cmd_list[i].name, prefix, prefix_len) == 0)
         {
-            shell_printf(shell, "  %-16s - %s\r\n",
-                         shell->cmd_list[i].name,
-                         shell->cmd_list[i].desc);
+            shell_printf(shell, "  %-16s - %s\r\n", shell->cmd_list[i].name, shell->cmd_list[i].desc);
         }
     }
 #endif
@@ -859,7 +849,8 @@ static void shell_show_commands(shell_t *shell, const char *prefix, uint8_t show
         shell_print(shell, "\r\nCurrent user: ");
         if (shell->current_user != NULL)
         {
-            shell_printf(shell, "%s (%s)\r\n",
+            shell_printf(shell,
+                         "%s (%s)\r\n",
                          shell->current_user->username,
                          shell_get_auth_name(shell->current_user->auth_level));
         }
@@ -882,10 +873,10 @@ static void shell_show_commands(shell_t *shell, const char *prefix, uint8_t show
  */
 static void shell_completion(shell_t *shell)
 {
-    const char *prefix = shell->cmd_buffer;
-    uint16_t prefix_len = shell->cmd_len;
-    const shell_cmd_t *match = NULL;
-    uint16_t match_count = 0;
+    const char        *prefix      = shell->cmd_buffer;
+    uint16_t           prefix_len  = shell->cmd_len;
+    const shell_cmd_t *match       = NULL;
+    uint16_t           match_count = 0;
 
     /* 查找匹配的命令 */
     for (uint16_t i = 0; i < shell->cmd_count; i++)
@@ -902,8 +893,8 @@ static void shell_completion(shell_t *shell)
         /* 唯一匹配，自动补全 */
         strncpy(shell->cmd_buffer, match->name, SHELL_CMD_SIZE - 1);
         shell->cmd_buffer[SHELL_CMD_SIZE - 1] = '\0';
-        shell->cmd_len = strlen(shell->cmd_buffer);
-        shell->cmd_pos = shell->cmd_len;
+        shell->cmd_len                        = strlen(shell->cmd_buffer);
+        shell->cmd_pos                        = shell->cmd_len;
         shell_refresh_line(shell);
     }
     else if (match_count > 1)
@@ -921,8 +912,8 @@ static void shell_completion(shell_t *shell)
 static void shell_exec_cmd(shell_t *shell)
 {
     char *argv[SHELL_ARG_MAX];
-    int argc = 0;
-    char *p = shell->cmd_buffer;
+    int   argc = 0;
+    char *p    = shell->cmd_buffer;
 
     /* 分割参数 */
     while (*p != '\0' && argc < SHELL_ARG_MAX)
@@ -967,7 +958,8 @@ static void shell_exec_cmd(shell_t *shell)
             /* 检查权限 */
             if (!shell_check_permission(shell, shell->cmd_list[i].auth_level))
             {
-                shell_printf(shell, "Permission denied. Required: %s, Current: %s\r\n",
+                shell_printf(shell,
+                             "Permission denied. Required: %s, Current: %s\r\n",
                              shell_get_auth_name(shell->cmd_list[i].auth_level),
                              shell_get_auth_name(shell_get_auth_level(shell)));
                 return;
@@ -1003,49 +995,49 @@ static void shell_handle_esc(shell_t *shell, char ch)
         switch (code)
         {
 #if SHELL_USING_HISTORY
-        case 'A': /* 上键 */
-        {
-            const char *hist = shell_get_history(shell, 1);
-            if (hist)
+            case 'A': /* 上键 */
             {
-                strncpy(shell->cmd_buffer, hist, SHELL_CMD_SIZE - 1);
-                shell->cmd_buffer[SHELL_CMD_SIZE - 1] = '\0';
-                shell->cmd_len = strlen(shell->cmd_buffer);
-                shell->cmd_pos = shell->cmd_len;
-                shell_refresh_line(shell);
+                const char *hist = shell_get_history(shell, 1);
+                if (hist)
+                {
+                    strncpy(shell->cmd_buffer, hist, SHELL_CMD_SIZE - 1);
+                    shell->cmd_buffer[SHELL_CMD_SIZE - 1] = '\0';
+                    shell->cmd_len                        = strlen(shell->cmd_buffer);
+                    shell->cmd_pos                        = shell->cmd_len;
+                    shell_refresh_line(shell);
+                }
             }
-        }
-        break;
+            break;
 
-        case 'B': /* 下键 */
-        {
-            const char *hist = shell_get_history(shell, -1);
-            if (hist)
+            case 'B': /* 下键 */
             {
-                strncpy(shell->cmd_buffer, hist, SHELL_CMD_SIZE - 1);
-                shell->cmd_buffer[SHELL_CMD_SIZE - 1] = '\0';
-                shell->cmd_len = strlen(shell->cmd_buffer);
-                shell->cmd_pos = shell->cmd_len;
-                shell_refresh_line(shell);
+                const char *hist = shell_get_history(shell, -1);
+                if (hist)
+                {
+                    strncpy(shell->cmd_buffer, hist, SHELL_CMD_SIZE - 1);
+                    shell->cmd_buffer[SHELL_CMD_SIZE - 1] = '\0';
+                    shell->cmd_len                        = strlen(shell->cmd_buffer);
+                    shell->cmd_pos                        = shell->cmd_len;
+                    shell_refresh_line(shell);
+                }
             }
-        }
-        break;
+            break;
 #endif
-        case 'C': /* 右键 */
-            if (shell->cmd_pos < shell->cmd_len)
-            {
-                shell->cmd_pos++;
-                shell_print(shell, ANSI_MOVE_RIGHT);
-            }
-            break;
+            case 'C': /* 右键 */
+                if (shell->cmd_pos < shell->cmd_len)
+                {
+                    shell->cmd_pos++;
+                    shell_print(shell, ANSI_MOVE_RIGHT);
+                }
+                break;
 
-        case 'D': /* 左键 */
-            if (shell->cmd_pos > 0)
-            {
-                shell->cmd_pos--;
-                shell_print(shell, ANSI_MOVE_LEFT);
-            }
-            break;
+            case 'D': /* 左键 */
+                if (shell->cmd_pos > 0)
+                {
+                    shell->cmd_pos--;
+                    shell_print(shell, ANSI_MOVE_LEFT);
+                }
+                break;
         }
 
         shell->esc_state = 0;
@@ -1079,7 +1071,7 @@ void shell_handle_char(shell_t *shell, char ch)
             {
                 /* 用户名输入完成 */
                 shell->cmd_buffer[shell->cmd_len] = '\0';
-                shell->login_state = 1;
+                shell->login_state                = 1;
                 shell_print(shell, "Password: ");
                 /* 清空缓冲区准备输入密码 */
                 shell->cmd_len = 0;
@@ -1101,7 +1093,8 @@ void shell_handle_char(shell_t *shell, char ch)
                     const shell_user_t *user = shell_get_current_user(shell);
                     if (user != NULL)
                     {
-                        shell_printf(shell, "Welcome, %s (%s)\r\n\r\n",
+                        shell_printf(shell,
+                                     "Welcome, %s (%s)\r\n\r\n",
                                      user->username,
                                      shell_get_auth_name(user->auth_level));
                     }
@@ -1110,8 +1103,7 @@ void shell_handle_char(shell_t *shell, char ch)
                 else
                 {
                     shell_print(shell, "\r\nLogin failed!\r\n");
-                    shell_printf(shell, "Attempts: %d/%d\r\n\r\n",
-                                 shell->login_tries, SHELL_MAX_LOGIN_TRIES);
+                    shell_printf(shell, "Attempts: %d/%d\r\n\r\n", shell->login_tries, SHELL_MAX_LOGIN_TRIES);
 
                     if (shell->login_tries >= SHELL_MAX_LOGIN_TRIES)
                     {
@@ -1126,8 +1118,8 @@ void shell_handle_char(shell_t *shell, char ch)
 
                 /* 清空密码缓冲 */
                 memset(shell->password_buffer, 0, sizeof(shell->password_buffer));
-                shell->cmd_len = 0;
-                shell->cmd_pos = 0;
+                shell->cmd_len       = 0;
+                shell->cmd_pos       = 0;
                 shell->cmd_buffer[0] = '\0';
                 shell_show_prompt(shell);
             }
@@ -1197,7 +1189,7 @@ void shell_handle_char(shell_t *shell, char ch)
         /* 调用透传处理函数 */
         if (shell->passthrough_handler != NULL)
         {
-            shell->passthrough_handler((uint8_t)ch);
+            shell->passthrough_handler((uint8_t) ch);
         }
         return;
     }
@@ -1211,74 +1203,74 @@ void shell_handle_char(shell_t *shell, char ch)
 
     switch (ch)
     {
-    case KEY_ESC:
-        shell->esc_state = 1;
-        shell->esc_index = 0;
-        break;
+        case KEY_ESC:
+            shell->esc_state = 1;
+            shell->esc_index = 0;
+            break;
 
-    case KEY_TAB:
+        case KEY_TAB:
 #if SHELL_USING_COMPLETION
-        shell_completion(shell);
+            shell_completion(shell);
 #endif
-        break;
+            break;
 
-    case KEY_BACKSPACE: /* 0x08 */
-    case KEY_DELETE:    /* 0x7F */
-        /* 兼容不同终端的Backspace键值 (0x08或0x7F) */
-        if (shell->cmd_pos > 0)
-        {
-            /* 删除光标前的字符 */
-            memmove(&shell->cmd_buffer[shell->cmd_pos - 1],
-                    &shell->cmd_buffer[shell->cmd_pos],
-                    shell->cmd_len - shell->cmd_pos);
-            shell->cmd_pos--;
-            shell->cmd_len--;
-            shell->cmd_buffer[shell->cmd_len] = '\0';
-            shell_refresh_line(shell);
-        }
-        break;
-
-    case KEY_ENTER:
-    case KEY_NEWLINE:
-        shell_print(shell, "\r\n");
-        shell->cmd_buffer[shell->cmd_len] = '\0';
-
-#if SHELL_USING_HISTORY
-        shell_add_history(shell, shell->cmd_buffer);
-        shell->history_cur = shell->history_index;
-#endif
-
-        shell_exec_cmd(shell);
-
-        /* 重置命令缓冲 */
-        shell->cmd_len = 0;
-        shell->cmd_pos = 0;
-        shell->cmd_buffer[0] = '\0';
-
-        shell_show_prompt(shell);
-        break;
-
-    default:
-        /* 可打印字符 */
-        if (ch >= 0x20 && ch < 0x7F)
-        {
-            if (shell->cmd_len < SHELL_CMD_SIZE - 1)
+        case KEY_BACKSPACE: /* 0x08 */
+        case KEY_DELETE:    /* 0x7F */
+            /* 兼容不同终端的Backspace键值 (0x08或0x7F) */
+            if (shell->cmd_pos > 0)
             {
-                /* 在光标位置插入字符 */
-                if (shell->cmd_pos < shell->cmd_len)
-                {
-                    memmove(&shell->cmd_buffer[shell->cmd_pos + 1],
-                            &shell->cmd_buffer[shell->cmd_pos],
-                            shell->cmd_len - shell->cmd_pos);
-                }
-                shell->cmd_buffer[shell->cmd_pos] = ch;
-                shell->cmd_pos++;
-                shell->cmd_len++;
+                /* 删除光标前的字符 */
+                memmove(&shell->cmd_buffer[shell->cmd_pos - 1],
+                        &shell->cmd_buffer[shell->cmd_pos],
+                        shell->cmd_len - shell->cmd_pos);
+                shell->cmd_pos--;
+                shell->cmd_len--;
                 shell->cmd_buffer[shell->cmd_len] = '\0';
                 shell_refresh_line(shell);
             }
-        }
-        break;
+            break;
+
+        case KEY_ENTER:
+        case KEY_NEWLINE:
+            shell_print(shell, "\r\n");
+            shell->cmd_buffer[shell->cmd_len] = '\0';
+
+#if SHELL_USING_HISTORY
+            shell_add_history(shell, shell->cmd_buffer);
+            shell->history_cur = shell->history_index;
+#endif
+
+            shell_exec_cmd(shell);
+
+            /* 重置命令缓冲 */
+            shell->cmd_len       = 0;
+            shell->cmd_pos       = 0;
+            shell->cmd_buffer[0] = '\0';
+
+            shell_show_prompt(shell);
+            break;
+
+        default:
+            /* 可打印字符 */
+            if (ch >= 0x20 && ch < 0x7F)
+            {
+                if (shell->cmd_len < SHELL_CMD_SIZE - 1)
+                {
+                    /* 在光标位置插入字符 */
+                    if (shell->cmd_pos < shell->cmd_len)
+                    {
+                        memmove(&shell->cmd_buffer[shell->cmd_pos + 1],
+                                &shell->cmd_buffer[shell->cmd_pos],
+                                shell->cmd_len - shell->cmd_pos);
+                    }
+                    shell->cmd_buffer[shell->cmd_pos] = ch;
+                    shell->cmd_pos++;
+                    shell->cmd_len++;
+                    shell->cmd_buffer[shell->cmd_len] = '\0';
+                    shell_refresh_line(shell);
+                }
+            }
+            break;
     }
 }
 
@@ -1292,7 +1284,7 @@ void shell_task(shell_t *shell)
     if (first_run)
     {
         first_run = 0;
-			  shell_print(shell, ANSI_CLEAR_SCREEN);
+        shell_print(shell, ANSI_CLEAR_SCREEN);
         shell_print(shell, "\r\n");
         shell_print(shell, "========================================\r\n");
         shell_print(shell, "  Embedded Shell v1.0\r\n");
@@ -1363,7 +1355,6 @@ void shellHandler(shell_t *shell, char data)
  */
 int shell_cmd_show_users(int argc, char *argv[])
 {
-
     shell_t *shell = shellGetCurrent();
     if (shell == NULL)
     {
@@ -1373,9 +1364,7 @@ int shell_cmd_show_users(int argc, char *argv[])
     shell_print(shell, "----------------------------------------\r\n");
     for (uint16_t i = 0; i < g_user_count; i++)
     {
-        shell_printf(shell, "  %-16s - %s\r\n",
-                     g_users[i].username,
-                     shell_get_auth_name(g_users[i].auth_level));
+        shell_printf(shell, "  %-16s - %s\r\n", g_users[i].username, shell_get_auth_name(g_users[i].auth_level));
     }
     shell_print(shell, "----------------------------------------\r\n");
     shell_print(shell, "\r\n");
@@ -1402,7 +1391,8 @@ int shell_cmd_show_shells(int argc, char *argv[])
     {
         if (g_shell_instances[i] != NULL)
         {
-            shell_printf(shell, "  %-16s - %s\r\n",
+            shell_printf(shell,
+                         "  %-16s - %s\r\n",
                          g_shell_instances[i]->name,
                          g_shell_instances[i]->status.isActive ? "Active" : "Inactive");
         }
@@ -1469,9 +1459,7 @@ int shell_cmd_help(int argc, char *argv[])
 
     for (uint16_t i = 0; i < shell->cmd_count; i++)
     {
-        shell_printf(shell, "  %-16s - %s\r\n",
-                     shell->cmd_list[i].name,
-                     shell->cmd_list[i].desc);
+        shell_printf(shell, "  %-16s - %s\r\n", shell->cmd_list[i].name, shell->cmd_list[i].desc);
     }
 
     shell_print(shell, "----------------------------------------\r\n");
@@ -1565,23 +1553,23 @@ int shell_cmd_logout(int argc, char *argv[])
  * ==================================================================================== */
 
 static const shell_cmd_t builtin_commands[] = {
-    {"help", "Show all available commands", shell_cmd_help, SHELL_AUTH_GUEST},
-    {"clear", "Clear screen", shell_cmd_clear, SHELL_AUTH_GUEST},
+    {             "help",     "Show all available commands",              shell_cmd_help, SHELL_AUTH_GUEST},
+    {            "clear",                    "Clear screen",             shell_cmd_clear, SHELL_AUTH_GUEST},
 #if SHELL_USING_HISTORY
-    {"history", "Show command history", shell_cmd_history, SHELL_AUTH_GUEST},
+    {          "history",            "Show command history",           shell_cmd_history, SHELL_AUTH_GUEST},
 #endif
 #if SHELL_USING_AUTH
-    {"users", "Show registered users", shell_cmd_show_users, SHELL_AUTH_ADMIN},
-    {"logout", "Logout current user", shell_cmd_logout, SHELL_AUTH_GUEST},
+    {            "users",           "Show registered users",        shell_cmd_show_users, SHELL_AUTH_ADMIN},
+    {           "logout",             "Logout current user",            shell_cmd_logout, SHELL_AUTH_GUEST},
 #endif
 #if SHELL_USING_PASSTHROUGH
-    {"enter_passthrough", "Enter passthrough mode", shell_cmd_enter_passthrough, SHELL_AUTH_USER},
-    {"exit_passthrough", "Exit passthrough mode", shell_cmd_exit_passthrough, SHELL_AUTH_USER},
+    {"enter_passthrough",          "Enter passthrough mode", shell_cmd_enter_passthrough,  SHELL_AUTH_USER},
+    { "exit_passthrough",           "Exit passthrough mode",  shell_cmd_exit_passthrough,  SHELL_AUTH_USER},
 #endif
-    {"version", "Show firmware version", shell_cmd_version, SHELL_AUTH_GUEST},
-    {"echo", "Echo input text", shell_cmd_echo, SHELL_AUTH_GUEST},
+    {          "version",           "Show firmware version",           shell_cmd_version, SHELL_AUTH_GUEST},
+    {             "echo",                 "Echo input text",              shell_cmd_echo, SHELL_AUTH_GUEST},
 #if SHELL_USING_MULTI_INSTANCE
-    {"shells", "Show registered shell instances", shell_cmd_show_shells, SHELL_AUTH_ADMIN},
+    {           "shells", "Show registered shell instances",       shell_cmd_show_shells, SHELL_AUTH_ADMIN},
 #endif
 };
 

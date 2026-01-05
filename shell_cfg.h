@@ -78,12 +78,12 @@
  * ===========================================================================*/
 
 #if SHELL_USING_HISTORY
-/**
- * 历史记录配置
- * - 内存占用 = SHELL_HISTORY_MAX × SHELL_CMD_SIZE 字节
- * - 例如: 10 × 128 = 1280字节
- */
-#define SHELL_HISTORY_MAX 10 /* 历史记录条数 */
+    /**
+     * 历史记录配置
+     * - 内存占用 = SHELL_HISTORY_MAX × SHELL_CMD_SIZE 字节
+     * - 例如: 10 × 128 = 1280字节
+     */
+    #define SHELL_HISTORY_MAX 10 /* 历史记录条数 */
 #endif
 
 /* ===========================================================================
@@ -92,42 +92,42 @@
 
 #if SHELL_USING_AUTH
 
-/**
- * 用户系统基础配置
- * - SHELL_MAX_USERS: 系统最大用户数
- * - SHELL_USERNAME_SIZE: 用户名最大长度(包含'\0')
- * - SHELL_PASSWORD_SIZE: 密码最大长度(包含'\0')
- */
-#define SHELL_MAX_USERS     8  /* 最大用户数 */
-#define SHELL_USERNAME_SIZE 16 /* 用户名最大长度 */
-#define SHELL_PASSWORD_SIZE 16 /* 密码最大长度 */
+    /**
+     * 用户系统基础配置
+     * - SHELL_MAX_USERS: 系统最大用户数
+     * - SHELL_USERNAME_SIZE: 用户名最大长度(包含'\0')
+     * - SHELL_PASSWORD_SIZE: 密码最大长度(包含'\0')
+     */
+    #define SHELL_MAX_USERS     8  /* 最大用户数 */
+    #define SHELL_USERNAME_SIZE 16 /* 用户名最大长度 */
+    #define SHELL_PASSWORD_SIZE 16 /* 密码最大长度 */
 
-/**
- * 登录安全配置
- * - SHELL_MAX_LOGIN_TRIES: 最大登录失败次数，超过后可锁定
- * - SHELL_LOGIN_TIMEOUT: 登录超时时间(秒)，0表示无限制
- * - SHELL_AUTO_LOCK: 失败次数达到上限后是否自动锁定用户
- */
-#define SHELL_MAX_LOGIN_TRIES 5  /* 最大登录尝试次数 */
-#define SHELL_LOGIN_TIMEOUT   60 /* 登录超时时间(秒, 0=无限) */
-#define SHELL_AUTO_LOCK_USER  0  /* 超限后自动锁定用户 */
+    /**
+     * 登录安全配置
+     * - SHELL_MAX_LOGIN_TRIES: 最大登录失败次数，超过后可锁定
+     * - SHELL_LOGIN_TIMEOUT: 登录超时时间(秒)，0表示无限制
+     * - SHELL_AUTO_LOCK: 失败次数达到上限后是否自动锁定用户
+     */
+    #define SHELL_MAX_LOGIN_TRIES 5  /* 最大登录尝试次数 */
+    #define SHELL_LOGIN_TIMEOUT   60 /* 登录超时时间(秒, 0=无限) */
+    #define SHELL_AUTO_LOCK_USER  0  /* 超限后自动锁定用户 */
 
-/**
- * 密码安全配置
- * - SHELL_PASSWORD_ENCRYPT: 启用密码加密存储
- * - SHELL_PASSWORD_MIN_LEN: 密码最小长度要求
- */
-#define SHELL_PASSWORD_ENCRYPT 0 /* 启用密码加密(需实现加密函数) */
-#define SHELL_PASSWORD_MIN_LEN 4 /* 密码最小长度 */
+    /**
+     * 密码安全配置
+     * - SHELL_PASSWORD_ENCRYPT: 启用密码加密存储
+     * - SHELL_PASSWORD_MIN_LEN: 密码最小长度要求
+     */
+    #define SHELL_PASSWORD_ENCRYPT 0 /* 启用密码加密(需实现加密函数) */
+    #define SHELL_PASSWORD_MIN_LEN 4 /* 密码最小长度 */
 
-/**
- * 默认管理员配置(编译时定义)
- * - 当未调用shell_user_init()时，系统使用此默认用户
- * - 建议在产品发布时修改默认密码
- */
-#define SHELL_DEFAULT_USERNAME "admin"          /* 默认管理员用户名 */
-#define SHELL_DEFAULT_PASSWORD "admin"          /* 默认管理员密码 */
-#define SHELL_DEFAULT_AUTH     SHELL_AUTH_ADMIN /* 默认权限级别 */
+    /**
+     * 默认管理员配置(编译时定义)
+     * - 当未调用shell_user_init()时，系统使用此默认用户
+     * - 建议在产品发布时修改默认密码
+     */
+    #define SHELL_DEFAULT_USERNAME "admin"          /* 默认管理员用户名 */
+    #define SHELL_DEFAULT_PASSWORD "admin"          /* 默认管理员密码 */
+    #define SHELL_DEFAULT_AUTH     SHELL_AUTH_ADMIN /* 默认权限级别 */
 
 #endif /* SHELL_USING_AUTH */
 
@@ -136,12 +136,12 @@
  * ===========================================================================*/
 
 #if SHELL_USING_FUNC_SIGNATURE
-/**
- * 参数适配配置
- * - 允许直接调用C函数，自动进行参数类型转换
- * - 内存占用: 约每个参数8字节(取决于平台)
- */
-#define SHELL_PARAMETER_MAX_NUMBER 16 /* 函数最大参数数量 */
+    /**
+     * 参数适配配置
+     * - 允许直接调用C函数，自动进行参数类型转换
+     * - 内存占用: 约每个参数8字节(取决于平台)
+     */
+    #define SHELL_PARAMETER_MAX_NUMBER 16 /* 函数最大参数数量 */
 #endif
 
 /* ===========================================================================
@@ -177,19 +177,19 @@
 
 /* 参数有效性检查 */
 #if SHELL_CMD_SIZE < 16
-#error "SHELL_CMD_SIZE must be at least 16"
+    #error "SHELL_CMD_SIZE must be at least 16"
 #endif
 
 #if SHELL_ARG_MAX < 2
-#error "SHELL_ARG_MAX must be at least 2"
+    #error "SHELL_ARG_MAX must be at least 2"
 #endif
 
 #if SHELL_USING_HISTORY && (SHELL_HISTORY_MAX < 1)
-#error "SHELL_HISTORY_MAX must be at least 1 when history is enabled"
+    #error "SHELL_HISTORY_MAX must be at least 1 when history is enabled"
 #endif
 
 #if SHELL_USING_AUTH && (SHELL_MAX_USERS < 1)
-#error "SHELL_MAX_USERS must be at least 1 when auth is enabled"
+    #error "SHELL_MAX_USERS must be at least 1 when auth is enabled"
 #endif
 
 #endif /* __SHELL_CFG_H */

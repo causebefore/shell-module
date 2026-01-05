@@ -7,6 +7,7 @@
  */
 
 #include "shell.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -20,9 +21,9 @@
  * 4. 添加完成后，在文件末尾的 user_commands[] 数组中注册命令
  * ==================================================================================== */
 
-static int user_cmd_test_main(int argc, char *argv[])
+static int user_cmd_test_main(int argc, char* argv[])
 {
-    shell_t *shell = shellGetCurrent();
+    shell_t* shell = shellGetCurrent();
     shell_print(shell, "This is a test command in main form.\r\n");
     return 0;
 }
@@ -69,7 +70,7 @@ static const shell_cmd_t user_commands[] = {
 static shell_cmd_t shell_commands_merged[MAX_BUILTIN_COMMANDS + sizeof(user_commands) / sizeof(shell_cmd_t)];
 
 /* 导出的命令列表指针和数量 */
-const shell_cmd_t *shell_commands  = NULL;
+const shell_cmd_t* shell_commands  = NULL;
 uint16_t           shell_cmd_count = 0;
 
 /**
@@ -81,7 +82,7 @@ void shell_commands_init(void)
     uint16_t           index = 0;
     uint16_t           i;
     uint16_t           builtin_count = 0;
-    const shell_cmd_t *builtin_list;
+    const shell_cmd_t* builtin_list;
 
     /* 获取内置命令列表 */
     builtin_list = shell_get_builtin_commands(&builtin_count);

@@ -11,6 +11,7 @@
  *****************************************************************************/
 
 #include "shell.h"
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -30,7 +31,7 @@
  *       - paramNum>0: 使用size_t参数适配 int func(size_t p1, size_t p2, ...)
  *       支持1-8个参数的函数（可通过SHELL_PARAMETER_MAX_NUMBER扩展）
  */
-int shellExtRun(shell_t *shell, shell_cmd_t *command, int argc, char *argv[])
+int shellExtRun(shell_t* shell, shell_cmd_t* command, int argc, char* argv[])
 {
     if (command == NULL || shell == NULL)
     {
@@ -42,7 +43,7 @@ int shellExtRun(shell_t *shell, shell_cmd_t *command, int argc, char *argv[])
     /* paramNum=0 表示使用标准main形式: int func(int argc, char *argv[]) */
     if (command->paramNum == 0)
     {
-        int (*func)(int, char **) = (int (*)(int, char **)) command->function;
+        int (*func)(int, char**) = (int (*)(int, char**)) command->function;
         return func(argc, argv);
     }
 
@@ -55,70 +56,62 @@ int shellExtRun(shell_t *shell, shell_cmd_t *command, int argc, char *argv[])
     }
     switch (paramNum)
     {
-#if SHELL_PARAMETER_MAX_NUMBER >= 1
-        case 1:
-        {
+    #if SHELL_PARAMETER_MAX_NUMBER >= 1
+        case 1: {
             int (*func)(size_t) = command->function;
             ret                 = func(params[0]);
             break;
         }
-#endif
-#if SHELL_PARAMETER_MAX_NUMBER >= 2
-        case 2:
-        {
+    #endif
+    #if SHELL_PARAMETER_MAX_NUMBER >= 2
+        case 2: {
             int (*func2)(size_t, size_t) = command->function;
             ret                          = func2(params[0], params[1]);
             break;
         }
-#endif
-#if SHELL_PARAMETER_MAX_NUMBER >= 3
-        case 3:
-        {
+    #endif
+    #if SHELL_PARAMETER_MAX_NUMBER >= 3
+        case 3: {
             int (*func3)(size_t, size_t, size_t) = command->function;
             ret                                  = func3(params[0], params[1], params[2]);
             break;
         }
-#endif
-#if SHELL_PARAMETER_MAX_NUMBER >= 4
-        case 4:
-        {
+    #endif
+    #if SHELL_PARAMETER_MAX_NUMBER >= 4
+        case 4: {
             int (*func4)(size_t, size_t, size_t, size_t) = command->function;
             ret                                          = func4(params[0], params[1], params[2], params[3]);
             break;
         }
-#endif
-#if SHELL_PARAMETER_MAX_NUMBER >= 5
-        case 5:
-        {
+    #endif
+    #if SHELL_PARAMETER_MAX_NUMBER >= 5
+        case 5: {
             int (*func5)(size_t, size_t, size_t, size_t, size_t) = command->function;
             ret = func5(params[0], params[1], params[2], params[3], params[4]);
             break;
         }
-#endif
-#if SHELL_PARAMETER_MAX_NUMBER >= 6
-        case 6:
-        {
+    #endif
+    #if SHELL_PARAMETER_MAX_NUMBER >= 6
+        case 6: {
             int (*func6)(size_t, size_t, size_t, size_t, size_t, size_t) = command->function;
             ret = func6(params[0], params[1], params[2], params[3], params[4], params[5]);
             break;
         }
-#endif
-#if SHELL_PARAMETER_MAX_NUMBER >= 7
-        case 7:
-        {
+    #endif
+    #if SHELL_PARAMETER_MAX_NUMBER >= 7
+        case 7: {
             int (*func7)(size_t, size_t, size_t, size_t, size_t, size_t, size_t) = command->function;
             ret = func7(params[0], params[1], params[2], params[3], params[4], params[5], params[6]);
             break;
         }
-#endif
-#if SHELL_PARAMETER_MAX_NUMBER >= 8
-        case 8:
-        {
+    #endif
+    #if SHELL_PARAMETER_MAX_NUMBER >= 8
+        case 8: {
             int (*func8)(size_t, size_t, size_t, size_t, size_t, size_t, size_t, size_t) = command->function;
             ret = func8(params[0], params[1], params[2], params[3], params[4], params[5], params[6], params[7]);
             break;
         }
-#endif
+    #endif
         default:
             ret = -1;
             break;
@@ -132,7 +125,7 @@ int shellExtRun(shell_t *shell, shell_cmd_t *command, int argc, char *argv[])
  * @brief 函数签名适配功能未启用时的占位函数
  * @note 当SHELL_USING_FUNC_SIGNATURE=0时，此函数用于避免链接错误
  */
-int shellExtRun(shell_t *shell, shell_cmd_t *command, int argc, char *argv[])
+int shellExtRun(shell_t* shell, shell_cmd_t* command, int argc, char* argv[])
 {
     (void) shell;
     (void) command;

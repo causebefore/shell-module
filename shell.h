@@ -13,6 +13,7 @@
 #define __SHELL_H
 
 #include "shell_cfg.h"
+
 #include <stdint.h>
 
 /* 用户权限级别 */
@@ -26,10 +27,10 @@ typedef enum
 /* 用户信息结构 */
 typedef struct
 {
-    const char        *username;    /* 用户名 */
-    const char        *password;    /* 密码 */
+    const char*        username;    /* 用户名 */
+    const char*        password;    /* 密码 */
     shell_auth_level_t auth_level;  /* 权限级别 */
-    const char        *description; /* 用户描述 */
+    const char*        description; /* 用户描述 */
 } shell_user_t;
 
 /**
@@ -39,7 +40,7 @@ typedef struct
  * @param stored_password 存储的密码（可能是加密的）
  * @return 0-验证成功, -1-验证失败
  */
-typedef int (*shell_password_verify_t)(const char *username, const char *password, const char *stored_password);
+typedef int (*shell_password_verify_t)(const char* username, const char* password, const char* stored_password);
 
 typedef enum
 {
@@ -47,14 +48,14 @@ typedef enum
     SHELL_TYPE_CMD_FUNC,     /**< C函数形式命令 */
 } ShellCommandType;
 /* 命令函数类型定义 */
-typedef int (*shell_cmd_func_t)(int argc, char *argv[]);
+typedef int (*shell_cmd_func_t)(int argc, char* argv[]);
 
 /* 命令结构体 */
 
 typedef struct
 {
-    const char *name;  /* 命令名称 */
-    const char *desc;  /* 命令描述 */
+    const char* name;  /* 命令名称 */
+    const char* desc;  /* 命令描述 */
     int (*function)(); /* 命令函数指针 */
 
     shell_auth_level_t auth_level; /* 执行此命令所需权限 */
@@ -66,7 +67,7 @@ typedef struct
 /* Shell控制块 */
 typedef struct
 {
-    const char *name;                       /* Shell实例名称 (如"UART1", "USB", "TCP") */
+    const char* name;                       /* Shell实例名称 (如"UART1", "USB", "TCP") */
     char        cmd_buffer[SHELL_CMD_SIZE]; /* 命令缓冲区 */
     uint16_t    cmd_pos;                    /* 当前光标位置 */
     uint16_t    cmd_len;                    /* 当前命令长度 */
@@ -78,7 +79,7 @@ typedef struct
     uint8_t history_cur;                                /* 当前浏览的历史 */
 #endif
 
-    const shell_cmd_t *cmd_list;  /* 命令列表 */
+    const shell_cmd_t* cmd_list;  /* 命令列表 */
     uint16_t           cmd_count; /* 命令数量 */
 
     uint8_t esc_state;     /* ESC序列状态 */
@@ -86,7 +87,7 @@ typedef struct
     uint8_t esc_index;     /* ESC序列索引 */
 
 #if SHELL_USING_AUTH
-    const shell_user_t     *current_user;                         /* 当前登录用户 */
+    const shell_user_t*     current_user;                         /* 当前登录用户 */
     char                    password_buffer[SHELL_PASSWORD_SIZE]; /* 密码输入缓冲 */
     uint8_t                 login_tries;                          /* 登录尝试次数 */
     uint8_t                 login_state;     /* 登录状态: 0=未登录, 1=输入用户名, 2=输入密码, 3=已登录 */
@@ -104,71 +105,66 @@ typedef struct
     void (*passthrough_handler)(uint8_t ch);
 
     /* 底层IO函数 */
-    void (*write)(const char *data, uint16_t len);
-    int (*read)(char *data, uint16_t len);
+    void (*write)(const char* data, uint16_t len);
+    int (*read)(char* data, uint16_t len);
 } shell_t;
 
 /* Shell API */
-void shell_init(shell_t *shell, const shell_cmd_t *cmd_list, uint16_t cmd_count);
-void shell_init_ex(shell_t           *shell,
-                   const char        *name,
-                   const shell_cmd_t *cmd_list,
-                   uint16_t           cmd_count,
-                   void (*write_func)(const char *data, uint16_t len),
-                   int (*read_func)(char *data, uint16_t len));
-void shell_set_io(shell_t *shell,
-                  void (*write_func)(const char *data, uint16_t len),
-                  int (*read_func)(char *data, uint16_t len));
-void shell_task(shell_t *shell);
-void shell_log(const char *buffer, int len);
-void shell_log_to(shell_t *shell, const char *buffer, int len); /* 定向输出日志 */
-void shellHandler(shell_t *shell, char data);                   /* 中断安全的字符处理函数 */
+void shell_init(shell_t* shell, const shell_cmd_t* cmd_list, uint16_t cmd_count);
+void shell_init_ex(shell_t* shell, const char* name, const shell_cmd_t* cmd_list, uint16_t cmd_count,
+                   void (*write_func)(const char* data, uint16_t len), int (*read_func)(char* data, uint16_t len));
+void shell_set_io(shell_t* shell, void (*write_func)(const char* data, uint16_t len),
+                  int (*read_func)(char* data, uint16_t len));
+void shell_task(shell_t* shell);
+void shell_log(const char* buffer, int len);
+void shell_log_to(shell_t* shell, const char* buffer, int len); /* 定向输出日志 */
+void shellHandler(shell_t* shell, char data);                   /* 中断安全的字符处理函数 */
 
 /* 多Shell管理API */
-void     shellAdd(shell_t *shell, const char *name);
-void     shellRemove(shell_t *shell);
-shell_t *shellGetCurrent(void);
-shell_t *shellGetByName(const char *name);
+void     shellAdd(shell_t* shell, const char* name);
+void     shellRemove(shell_t* shell);
+shell_t* shellGetCurrent(void);
+shell_t* shellGetByName(const char* name);
 int      shell_get_count(void);
 
 /* 透传模式API */
-void shell_passthrough_add_handler(shell_t *shell, void (*handler)(uint8_t ch));
+void shell_passthrough_add_handler(shell_t* shell, void (*handler)(uint8_t ch));
 
 #if SHELL_USING_AUTH
 /* 用户权限管理API */
-void                shell_user_init(const shell_user_t *users, uint16_t user_count);
-int                 shell_login(shell_t *shell, const char *username, const char *password);
-void                shell_logout(shell_t *shell);
-const shell_user_t *shell_get_current_user(shell_t *shell);
-shell_auth_level_t  shell_get_auth_level(shell_t *shell);
-int                 shell_check_permission(shell_t *shell, shell_auth_level_t required_level);
-const char         *shell_get_auth_name(shell_auth_level_t level);
-void                shell_set_password_verify(shell_t *shell, shell_password_verify_t verify_func);
+void                shell_user_init(const shell_user_t* users, uint16_t user_count);
+int                 shell_login(shell_t* shell, const char* username, const char* password);
+void                shell_logout(shell_t* shell);
+const shell_user_t* shell_get_current_user(shell_t* shell);
+shell_auth_level_t  shell_get_auth_level(shell_t* shell);
+int                 shell_check_permission(shell_t* shell, shell_auth_level_t required_level);
+const char*         shell_get_auth_name(shell_auth_level_t level);
+void                shell_set_password_verify(shell_t* shell, shell_password_verify_t verify_func);
 #endif
 
 /* 辅助函数 */
-void shell_print(shell_t *shell, const char *str);
-void shell_printf(shell_t *shell, const char *format, ...);
+void shell_print(shell_t* shell, const char* str);
+void shell_printf(shell_t* shell, const char* format, ...);
 
 /* 内置命令 */
-int shell_cmd_help(int argc, char *argv[]);
-int shell_cmd_clear(int argc, char *argv[]);
-int shell_cmd_history(int argc, char *argv[]);
-int shell_cmd_logout(int argc, char *argv[]);
-int shell_cmd_echo(int argc, char *argv[]);
-int shell_cmd_version(int argc, char *argv[]);
+int shell_cmd_help(int argc, char* argv[]);
+int shell_cmd_clear(int argc, char* argv[]);
+int shell_cmd_history(int argc, char* argv[]);
+int shell_cmd_logout(int argc, char* argv[]);
+int shell_cmd_echo(int argc, char* argv[]);
+int shell_cmd_version(int argc, char* argv[]);
 /* 内置命令列表获取 */
-const shell_cmd_t *shell_get_builtin_commands(uint16_t *count);
+const shell_cmd_t* shell_get_builtin_commands(uint16_t* count);
 
 /* 外部命令列表声明 */
-extern const shell_cmd_t *shell_commands;
+extern const shell_cmd_t* shell_commands;
 extern uint16_t           shell_cmd_count;
 
 /* 命令列表初始化 */
 void shell_commands_init(void);
 
 /* 扩展命令执行(参数适配模式) */
-int shellExtRun(shell_t *shell, shell_cmd_t *command, int argc, char *argv[]);
+int shellExtRun(shell_t* shell, shell_cmd_t* command, int argc, char* argv[]);
 
 /* ===========================================================================
  *                          命令导出宏定义

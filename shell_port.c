@@ -34,7 +34,7 @@ char c;
  *       - Linux: write(fd, data, len);
  *       - FreeRTOS: 可能需要加互斥锁
  */
-static void shell_write_impl(const char *data, uint16_t len)
+static void shell_write_impl(const char* data, uint16_t len)
 {
     /* 示例: STM32标准库实现 */
     //    for (uint16_t i = 0; i < len; i++)
@@ -60,7 +60,7 @@ static void shell_write_impl(const char *data, uint16_t len)
  *       - 中断模式：从环形缓冲区读取
  *       - DMA模式：从DMA缓冲区读取
  */
-static int shell_read_impl(char *data, uint16_t len)
+static int shell_read_impl(char* data, uint16_t len)
 {
     (void) len; /* 未使用的参数 */
 

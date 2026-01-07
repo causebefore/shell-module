@@ -112,6 +112,6 @@ SHELL_EXPORT_VAR(variable_name, variable_pointer, type, readonly_flag);
 
 - **Do not use `printf` directly** - Use `shell_printf` for output
 - **Do not modify the README encoding** - It uses UTF-16 LE for Chinese characters
-- **Avoid C99/C11-specific features** without consideration for embedded toolchains
+- **Use C11 standard features judiciously** - Ensure compatibility with common embedded toolchains
 - **Never hardcode passwords or credentials** in the code
 - **Do not break the modular structure** - Keep platform-specific code in `shell_port.c`

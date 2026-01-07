@@ -97,29 +97,27 @@ This code is designed for resource-constrained embedded systems:
 ## Common Patterns
 
 ### Command Registration
-Commands are registered using the `SHELL_EXPORT_CMD` macro:
+Commands are registered using the `SHELL_EXPORT_CMD` macro (4 parameters):
 
 ```c
-// Basic form - 3 parameters (name, description, function):
-SHELL_EXPORT_CMD(name, "description", function);
-
-// With SHELL_USING_AUTH enabled - 4 parameters (adds permission):
-SHELL_EXPORT_CMD(name, "description", function, permission);
+// Standard usage (provide permission even if SHELL_USING_AUTH is disabled):
+SHELL_EXPORT_CMD(help, "Show commands", cmd_help, SHELL_PERM_NONE);
+SHELL_EXPORT_CMD(test, "Test command", cmd_test, SHELL_PERM_USER);
 
 // For tab completion (when SHELL_USING_COMPLETION enabled):
-// Use SHELL_EXPORT_CMD_LIST with 5 parameters
-// Note: permission parameter is always required in signature but may be ignored
-SHELL_EXPORT_CMD_LIST(name, "description", function, permission, completion_list);
+SHELL_EXPORT_CMD_LIST(mode, "Set mode", cmd_mode, SHELL_PERM_NONE, mode_options);
 ```
 
+**Note**: The name parameter is provided without quotes (e.g., `help`, not `"help"`).
+
 ### Variable Export
-Variables are exported using the `SHELL_EXPORT_VAR` macro:
+Variables are exported using the `SHELL_EXPORT_VAR` macro (3 parameters):
 ```c
-// Read-write variable:
-SHELL_EXPORT_VAR(variable_name, &variable, SHELL_VAR_INT);
+// Read-write variable (provide name without quotes):
+SHELL_EXPORT_VAR(test_int, &s_test_int, SHELL_VAR_INT);
 
 // Read-only variable:
-SHELL_EXPORT_VAR_RO(variable_name, &variable, SHELL_VAR_INT);
+SHELL_EXPORT_VAR_RO(version, &version_string, SHELL_VAR_STRING);
 ```
 
 ## Forbidden Patterns

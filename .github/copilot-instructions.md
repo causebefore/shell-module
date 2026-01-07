@@ -97,17 +97,18 @@ This code is designed for resource-constrained embedded systems:
 ## Common Patterns
 
 ### Command Registration
-Commands are registered using the `SHELL_EXPORT_CMD` macro. The basic form is:
+Commands are registered using the `SHELL_EXPORT_CMD` macro:
 
 ```c
-// Basic command registration (always 3 parameters minimum):
+// Basic form - 3 parameters (name, description, function):
 SHELL_EXPORT_CMD(name, "description", function);
 
-// With SHELL_USING_AUTH enabled, add permission parameter:
+// With SHELL_USING_AUTH enabled - 4 parameters (adds permission):
 SHELL_EXPORT_CMD(name, "description", function, permission);
 
-// With SHELL_USING_COMPLETION enabled, use SHELL_EXPORT_CMD_LIST for tab completion:
-// (permission parameter ignored if SHELL_USING_AUTH is disabled)
+// For tab completion (when SHELL_USING_COMPLETION enabled):
+// Use SHELL_EXPORT_CMD_LIST with 5 parameters
+// Note: permission parameter is always required in signature but may be ignored
 SHELL_EXPORT_CMD_LIST(name, "description", function, permission, completion_list);
 ```
 

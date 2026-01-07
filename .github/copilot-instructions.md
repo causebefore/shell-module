@@ -97,15 +97,27 @@ This code is designed for resource-constrained embedded systems:
 ## Common Patterns
 
 ### Command Registration
-Commands are registered using the `SHELL_EXPORT_CMD` macro:
+Commands are registered using the `SHELL_EXPORT_CMD` macro. The signature varies based on configuration:
+
 ```c
-SHELL_EXPORT_CMD(command_name, command_description, command_function, permission);
+// With SHELL_USING_AUTH enabled:
+SHELL_EXPORT_CMD(name, "description", function, permission);
+
+// Without SHELL_USING_AUTH:
+SHELL_EXPORT_CMD(name, "description", function);
+
+// With SHELL_USING_COMPLETION, use SHELL_EXPORT_CMD_LIST for tab completion:
+SHELL_EXPORT_CMD_LIST(name, "description", function, permission, completion_list);
 ```
 
 ### Variable Export
 Variables are exported using the `SHELL_EXPORT_VAR` macro:
 ```c
-SHELL_EXPORT_VAR(variable_name, variable_pointer, type, readonly_flag);
+// Read-write variable:
+SHELL_EXPORT_VAR(variable_name, &variable, SHELL_VAR_INT);
+
+// Read-only variable:
+SHELL_EXPORT_VAR_RO(variable_name, &variable, SHELL_VAR_INT);
 ```
 
 ## Forbidden Patterns

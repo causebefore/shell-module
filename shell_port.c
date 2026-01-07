@@ -1,112 +1,223 @@
-/*****************************************************************************
- * @file        shell_port.c
- * @brief       Shell移植层实现 - 硬件IO函数
- * @author      liu
- * @date        2025-12-10
- * @version     2.0
- * @copyright   Copyright (c) 2025 by liu lbq08@foxmail.com, All Rights Reserved.
+/**
+ * @file    shell_port.c
+ * @brief   Shell移植层 - UART1 DMA发送 + DMA空闲接收
  *
- * @details     本文件仅实现Shell的硬件IO层，包括：
- *              - UART收发函数实现
- *              - 中断/轮询模式缓冲区管理
+ * 方式1: DMA空闲接收 (当前使用)
+ *   - 使用 HAL_UARTEx_ReceiveToIdle_DMA 进行批量接收
+ *   - 适合高波特率、大数据量场景
  *
- * @note        移植到其他平台时，只需修改本文件中的读写函数即可
- *              Shell实例初始化、用户配置等请在shell_demo.c中实现
- *****************************************************************************/
+ * 方式2: 中断接收 + 内置环形缓冲区 (见文件末尾示例)
+ *   - 在UART中断中调用 shell_rx_push()
+ *   - shell_init 时 read 参数传 NULL
+ *   - 适合简单场景，无需DMA
+ */
 
 #include "shell_port.h"
 
-/* ===========================================================================
- *                          IO函数实现区
- *                    (移植时主要修改这两个函数)
- * ===========================================================================*/
+#include "usart.h"
 
-char c;
+#include <string.h>
 
-/**
- * @brief Shell写函数 - 发送数据到UART
- * @param data 要发送的数据指针
- * @param len 数据长度
- *
- * @note 移植说明：
- *       - STM32 HAL: HAL_UART_Transmit(&huart1, (uint8_t*)data, len, 100);
- *       - STM32 SPL: 循环调用 USART_SendData()
- *       - Linux: write(fd, data, len);
- *       - FreeRTOS: 可能需要加互斥锁
- */
+/* Shell实例 */
+shell_t g_shell_usart1;
+
+/* DMA接收缓冲区 (独立于shell内置缓冲区) */
+#define PORT_RX_BUF_SIZE 64
+static uint8_t           s_rx_buf[PORT_RX_BUF_SIZE];
+static volatile uint16_t s_rx_len  = 0;
+static volatile uint8_t  s_rx_flag = 0;
+
+/* ==================== IO实现 ==================== */
+
 static void shell_write_impl(const char* data, uint16_t len)
 {
-    /* 示例: STM32标准库实现 */
-    //    for (uint16_t i = 0; i < len; i++)
-    //    {
-    //        Usart_SendByte(DEBUG_USARTx, data[i]);
-    //    }
-    SEGGER_RTT_SetTerminal(0);
-    SEGGER_RTT_WriteString(0, data);
-    /* 其他平台示例:
-     * HAL库: HAL_UART_Transmit(&huart1, (uint8_t*)data, len, HAL_MAX_DELAY);
-     * Linux: write(uart_fd, data, len);
-     */
+    UART_DMA_TxBuffer_Write(&huart1, (const uint8_t*) data, len);
+}
+
+static int shell_read_impl(char* data, uint16_t len)
+{
+    if (s_rx_flag && s_rx_len > 0)
+    {
+        uint16_t copy_len = (s_rx_len < len) ? s_rx_len : len;
+        memcpy(data, s_rx_buf, copy_len);
+        s_rx_flag = 0;
+
+        /* 重新启动DMA接收 */
+        HAL_UARTEx_ReceiveToIdle_DMA(&huart1, s_rx_buf, PORT_RX_BUF_SIZE);
+        __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT); /* 禁用半传输中断 */
+
+        return copy_len;
+    }
+    return 0;
 }
 
 /**
- * @brief Shell读函数 - 从UART读取数据
- * @param data 接收缓冲区
- * @param len 要读取的长度
- * @return 实际读取的字节数
- *
- * @note 实现方式由用户自定义，可以是：
- *       - 轮询模式：直接检查UART寄存器
- *       - 中断模式：从环形缓冲区读取
- *       - DMA模式：从DMA缓冲区读取
+ * @brief HAL UART空闲回调 - 在 stm32f4xx_it.c 中被 HAL_UART_IRQHandler 调用
  */
-static int shell_read_impl(char* data, uint16_t len)
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef* huart, uint16_t Size)
 {
-    (void) len; /* 未使用的参数 */
-
-    //    /* 示例: 轮询模式 - STM32标准库实现 */
-    //    if (USART_GetFlagStatus(DEBUG_USARTx, USART_FLAG_RXNE) != RESET)
-    //    {
-    //        data[0] = USART_ReceiveData(DEBUG_USARTx);
-    //        return 1;
-    //    }
-
-    /* 示例: 中断模式 - 从环形缓冲区读取
-     * if (rx_write_index != rx_read_index)
-     * {
-     *     data[0] = rx_buffer[rx_read_index];
-     *     rx_read_index = (rx_read_index + 1) % BUFFER_SIZE;
-     *     return 1;
-     * }
-     */
-
-    /* 示例: HAL库轮询模式
-     * if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_RXNE))
-     * {
-     *     data[0] = huart1.Instance->DR;
-     *     return 1;
-     * }
-     */
-
-    return 0; /* 无数据 */
+    if (huart->Instance == USART1)
+    {
+        s_rx_len  = Size;
+        s_rx_flag = 1;
+    }
 }
-shell_t g_shell_usart1;
-void    my_shell_init(void)
-{
-    // 1. 初始化命令列表
-    shell_commands_init();
 
-    // 2. 初始化Shell实例
-    shell_init_ex(&g_shell_usart1, "RTTShell", shell_commands, shell_cmd_count, shell_write_impl, shell_read_impl);
+/* ==================== 用户定义 ==================== */
+
+#if SHELL_USING_AUTH
+
+    #if SHELL_USING_HASH_PWD
+        /*
+         * 密码哈希值生成工具:
+         * 运行 shell_hash("your_password") 获取哈希值
+         * 然后将哈希值填入下方 password 字段
+         */
+        #define HASH_ROOT  0x7DD1705AUL /* hash("123456") */
+        #define HASH_ADMIN 0x0F12FC8EUL /* hash("admin")  */
+        #define HASH_NONE  0x00000000UL /* 无密码 */
+
+static const shell_user_t s_shell_users[] = {
+    {"root",  (const char*) (uintptr_t) HASH_ROOT,  SHELL_PERM_ROOT }, /* 超级用户 */
+    {"admin", (const char*) (uintptr_t) HASH_ADMIN, SHELL_PERM_ADMIN}, /* 管理员 */
+    {"guest", (const char*) (uintptr_t) HASH_NONE,  SHELL_PERM_USER }, /* 访客(无密码) */
+};
+    #else
+/* 明文密码方式 (不推荐) */
+static const shell_user_t s_shell_users[] = {
+    {"root",  "123456", SHELL_PERM_ROOT }, /* 超级用户 */
+    {"admin", "admin",  SHELL_PERM_ADMIN}, /* 管理员 */
+    {"guest", "",       SHELL_PERM_USER }, /* 访客(无密码) */
+};
+    #endif
+
+    #define USER_COUNT (sizeof(s_shell_users) / sizeof(s_shell_users[0]))
+#endif
+
+/* ==================== 用户命令 ==================== */
+
+static int cmd_test(int argc, char* argv[])
+{
+    shell_print(g_shell, "Test OK\r\n");
+    return 0;
+}
+
+/* 需要管理员权限的命令示例 */
+static int cmd_reboot(int argc, char* argv[])
+{
+    shell_print(g_shell, "System rebooting...\r\n");
+    /* HAL_NVIC_SystemReset(); */
+    return 0;
+}
+
+/* 带参数补全的命令示例 */
+static int cmd_mode(int argc, char* argv[])
+{
+    if (argc < 2)
+    {
+        shell_print(g_shell, "Usage: mode <speed|angle|torque>\r\n");
+        return -1;
+    }
+    shell_printf(g_shell, "Mode set to: %s\r\n", argv[1]);
+    return 0;
+}
+
+/* 补全列表 (必须以 NULL 结尾) */
+static const char* s_mode_opts[] = {"speed", "angle", "torque", NULL};
+
+/* ==================== 宏注册命令 ==================== */
+
+/* 内置命令 */
+SHELL_EXPORT_CMD(help, "Show commands", cmd_help, SHELL_PERM_NONE);
+SHELL_EXPORT_CMD(clear, "Clear screen", cmd_clear, SHELL_PERM_NONE);
+#if SHELL_USING_HISTORY
+SHELL_EXPORT_CMD(history, "Show history", cmd_history, SHELL_PERM_NONE);
+#endif
+#if SHELL_USING_VAR
+SHELL_EXPORT_CMD(var, "Read/write variable", cmd_var, SHELL_PERM_NONE);
+SHELL_EXPORT_CMD(vars, "List all variables", cmd_vars, SHELL_PERM_NONE);
+#endif
+
+#if SHELL_USING_AUTH
+SHELL_EXPORT_CMD(login, "Login user", cmd_login, SHELL_PERM_NONE);
+SHELL_EXPORT_CMD(logout, "Logout", cmd_logout, SHELL_PERM_NONE);
+SHELL_EXPORT_CMD(whoami, "Current user", cmd_whoami, SHELL_PERM_NONE);
+#endif
+
+/* 用户命令 */
+SHELL_EXPORT_CMD(test, "Test command", cmd_test, SHELL_PERM_USER);                   /* 需要登录 */
+SHELL_EXPORT_CMD(reboot, "System reboot", cmd_reboot, SHELL_PERM_ADMIN);             /* 需要管理员 */
+SHELL_EXPORT_CMD_LIST(mode, "Set FOC mode", cmd_mode, SHELL_PERM_NONE, s_mode_opts); /* 带参数补全 */
+
+/* ==================== 示例变量导出 ==================== */
+#if SHELL_USING_VAR
+static int         s_test_int   = 100;
+static uint32_t    s_test_uint  = 0x12345678;
+static float       s_test_float = 3.14f;
+static uint8_t     s_test_bool  = 1;
+static const char* s_version    = "1.0.0";
+
+SHELL_EXPORT_VAR(test_int, &s_test_int, SHELL_VAR_INT);
+SHELL_EXPORT_VAR(test_uint, &s_test_uint, SHELL_VAR_UINT);
+SHELL_EXPORT_VAR(test_float, &s_test_float, SHELL_VAR_FLOAT);
+SHELL_EXPORT_VAR(test_bool, &s_test_bool, SHELL_VAR_BOOL);
+SHELL_EXPORT_VAR_RO(version, &s_version, SHELL_VAR_STRING);
+#endif
+
+/* ==================== 初始化 ==================== */
+
+void my_shell_init(void)
+{
+    /* 初始化shell (使用宏导出命令) */
+    shell_init_export(&g_shell_usart1, shell_write_impl, shell_read_impl);
+
+#if SHELL_USING_AUTH
+    /* 设置用户列表 */
+    shell_set_users(&g_shell_usart1, s_shell_users, USER_COUNT);
+#endif
+
+    /* 启动DMA接收 (空闲中断模式) */
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, s_rx_buf, PORT_RX_BUF_SIZE);
+    __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT); /* 禁用半传输中断 */
 }
 
 void my_shell_task(void)
 {
     shell_task(&g_shell_usart1);
+}
 
-    if (SEGGER_RTT_HasKey())
+/* ==================== 方式2: 中断接收示例 (无需DMA) ==================== */
+#if 0 /* 启用此方式时改为 1, 并禁用上方DMA相关代码 */
+
+/**
+ * 使用内置环形缓冲区的初始化方式:
+ * 1. shell_init 时 read 参数传 NULL
+ * 2. 在 UART 接收中断中调用 shell_rx_push()
+ */
+
+void my_shell_init_simple(void)
+{
+    /* read=NULL 时 shell_task 自动使用内置环形缓冲区 */
+    shell_init_export(&g_shell_usart1, shell_write_impl, NULL);
+
+    #if SHELL_USING_AUTH
+    shell_set_users(&g_shell_usart1, s_shell_users, USER_COUNT);
+    #endif
+
+    /* 启用UART接收中断 */
+    __HAL_UART_ENABLE_IT(&huart1, UART_IT_RXNE);
+}
+
+/**
+ * UART 接收中断处理 (在 stm32f4xx_it.c 的 USART1_IRQHandler 中调用)
+ */
+void shell_uart_irq_handler(void)
+{
+    if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_RXNE))
     {
-        c = SEGGER_RTT_GetKey();
-        shellHandler(&g_shell_usart1, c);
+        uint8_t ch = (uint8_t)(huart1.Instance->DR & 0xFF);
+        shell_rx_push(&g_shell_usart1, ch);  /* 写入内置环形缓冲区 */
     }
 }
+
+#endif /* 方式2示例 */

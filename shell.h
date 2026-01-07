@@ -1,14 +1,12 @@
-/***
- * @Author: liu
- * @Date: 2025-12-09 18:39:37
- * @LastEditors: liu lbq08@foxmail.com
- * @LastEditTime: 2025-12-09 20:38:05
- * @FilePath: \shell\shell.h
- * @Description:
- * @
- * @Copyright (c) 2025 by liu lbq08@foxmail.com, All Rights Reserved.
+/**
+ * 
+ * @file shell.h
+ * @author liu (lbq08@foxmail.com)
+ * @brief shell模块头文件 - 精简CLI版本
+ * 
+ * @copyright Copyright (c) 2026 liu 
+ * For study and research only
  */
-
 #ifndef __SHELL_H
 #define __SHELL_H
 
@@ -16,185 +14,311 @@
 
 #include <stdint.h>
 
-/* 用户权限级别 */
-typedef enum
-{
-    SHELL_AUTH_GUEST = 0, /* 访客 - 只能执行基本命令 */
-    SHELL_AUTH_USER  = 1, /* 普通用户 - 可执行大部分命令 */
-    SHELL_AUTH_ADMIN = 2, /* 管理员 - 可执行所有命令 */
-    SHELL_AUTH_ROOT  = 3  /* 超级管理员 - 最高权限 */
-} shell_auth_level_t;
-/* 用户信息结构 */
+/* 命令结构体 */
 typedef struct
 {
-    const char*        username;    /* 用户名 */
-    const char*        password;    /* 密码 */
-    shell_auth_level_t auth_level;  /* 权限级别 */
-    const char*        description; /* 用户描述 */
+    const char* name;
+    const char* desc;
+    int (*func)(int argc, char* argv[]);
+#if SHELL_USING_AUTH
+    uint8_t permission;    /* 权限掩码: 0=无限制, 其他=需要对应权限 */
+#endif
+#if SHELL_USING_COMPLETION
+    const char** comp_list; /* 参数补全列表 (NULL结尾), 可为NULL */
+#endif
+} shell_cmd_t;
+
+/* ==================== 变量导出 ==================== */
+#if SHELL_USING_VAR
+
+/* 变量类型 */
+typedef enum {
+    SHELL_VAR_INT,      /* int 型 */
+    SHELL_VAR_UINT,     /* unsigned int 型 */
+    SHELL_VAR_FLOAT,    /* float 型 */
+    SHELL_VAR_BOOL,     /* bool 型 (0/1) */
+    SHELL_VAR_STRING,   /* 字符串 (只读) */
+} shell_var_type_t;
+
+/* 变量结构体 */
+typedef struct {
+    const char*      name;      /* 变量名 */
+    void*            ptr;       /* 变量指针 */
+    shell_var_type_t type;      /* 变量类型 */
+    uint8_t          readonly;  /* 只读标志 */
+} shell_var_t;
+
+#endif /* SHELL_USING_VAR */
+
+#if SHELL_USING_AUTH
+/* 用户结构体 */
+typedef struct
+{
+    const char* name;       /* 用户名 */
+    const char* password;   /* 密码 (空字符串=无密码) */
+    uint8_t     permission; /* 权限掩码 */
 } shell_user_t;
 
-/**
- * @brief 密码验证回调函数类型
- * @param username 用户名
- * @param password 用户输入的密码
- * @param stored_password 存储的密码（可能是加密的）
- * @return 0-验证成功, -1-验证失败
+/* 权限等级定义 */
+#define SHELL_PERM_NONE   0x00  /* 无限制 */
+#define SHELL_PERM_USER   0x01  /* 普通用户 */
+#define SHELL_PERM_ADMIN  0x02  /* 管理员 */
+#define SHELL_PERM_ROOT   0xFF  /* 超级用户 */
+#endif
+
+/* ==================== 命令导出宏 ==================== */
+/*
+ * 使用方法：在任意 .c 文件中添加命令：
+ *   SHELL_EXPORT_CMD(test, "Test command", cmd_test);
+ *
+ * 链接脚本需要添加：
+ *   .shell_cmd :
+ *   {
+ *       . = ALIGN(4);
+ *       __shell_cmd_start = .;
+ *       KEEP(*(.shell_cmd*))
+ *       __shell_cmd_end = .;
+ *   } > FLASH
  */
-typedef int (*shell_password_verify_t)(const char* username, const char* password, const char* stored_password);
 
-typedef enum
-{
-    SHELL_TYPE_CMD_MAIN = 0, /**< main形式命令 */
-    SHELL_TYPE_CMD_FUNC,     /**< C函数形式命令 */
-} ShellCommandType;
-/* 命令函数类型定义 */
-typedef int (*shell_cmd_func_t)(int argc, char* argv[]);
+/* Keil/ARMCC 编译器 */
+#if defined(__CC_ARM) || defined(__ARMCC_VERSION)
+    #define SHELL_USED    __attribute__((used))
+    #define SHELL_SECTION __attribute__((section("SHELL_CMD")))
+/* GCC 编译器 */
+#elif defined(__GNUC__)
+    #define SHELL_USED    __attribute__((used))
+    #define SHELL_SECTION __attribute__((section(".shell_cmd")))
+/* IAR 编译器 */
+#elif defined(__ICCARM__)
+    #define SHELL_USED
+    #define SHELL_SECTION @ ".shell_cmd"
+#else
+    #define SHELL_USED
+    #define SHELL_SECTION
+#endif
 
-/* 命令结构体 */
+/**
+ * @brief 命令导出宏
+ * @param _name 命令名称（不加引号）
+ * @param _desc 命令描述（字符串）
+ * @param _func 命令函数（int func(int argc, char* argv[])）
+ * @param _perm 权限掩码（仅 SHELL_USING_AUTH 启用时有效）
+ */
+#if SHELL_USING_AUTH && SHELL_USING_COMPLETION
+/* 带权限和补全列表 */
+#define SHELL_EXPORT_CMD(_name, _desc, _func, _perm) \
+    SHELL_USED const shell_cmd_t __shell_cmd_##_name SHELL_SECTION = { \
+        .name = #_name, .desc = _desc, .func = _func, \
+        .permission = _perm, .comp_list = NULL, \
+    }
+#define SHELL_EXPORT_CMD_LIST(_name, _desc, _func, _perm, _list) \
+    SHELL_USED const shell_cmd_t __shell_cmd_##_name SHELL_SECTION = { \
+        .name = #_name, .desc = _desc, .func = _func, \
+        .permission = _perm, .comp_list = _list, \
+    }
+#elif SHELL_USING_AUTH
+#define SHELL_EXPORT_CMD(_name, _desc, _func, _perm) \
+    SHELL_USED const shell_cmd_t __shell_cmd_##_name SHELL_SECTION = { \
+        .name = #_name, .desc = _desc, .func = _func, .permission = _perm, \
+    }
+#elif SHELL_USING_COMPLETION
+#define SHELL_EXPORT_CMD(_name, _desc, _func, ...) \
+    SHELL_USED const shell_cmd_t __shell_cmd_##_name SHELL_SECTION = { \
+        .name = #_name, .desc = _desc, .func = _func, .comp_list = NULL, \
+    }
+#define SHELL_EXPORT_CMD_LIST(_name, _desc, _func, _perm, _list) \
+    SHELL_USED const shell_cmd_t __shell_cmd_##_name SHELL_SECTION = { \
+        .name = #_name, .desc = _desc, .func = _func, .comp_list = _list, \
+    }
+#else
+#define SHELL_EXPORT_CMD(_name, _desc, _func, ...) \
+    SHELL_USED const shell_cmd_t __shell_cmd_##_name SHELL_SECTION = { \
+        .name = #_name, .desc = _desc, .func = _func, \
+    }
+#endif
 
-typedef struct
-{
-    const char* name;  /* 命令名称 */
-    const char* desc;  /* 命令描述 */
-    int (*function)(); /* 命令函数指针 */
+/* ==================== 变量导出宏 ==================== */
+#if SHELL_USING_VAR
 
-    shell_auth_level_t auth_level; /* 执行此命令所需权限 */
+/* Keil/ARMCC 编译器 */
+#if defined(__CC_ARM) || defined(__ARMCC_VERSION)
+    #define SHELL_VAR_SECTION __attribute__((section("SHELL_VAR")))
+#elif defined(__GNUC__)
+    #define SHELL_VAR_SECTION __attribute__((section(".shell_var")))
+#elif defined(__ICCARM__)
+    #define SHELL_VAR_SECTION @ ".shell_var"
+#else
+    #define SHELL_VAR_SECTION
+#endif
 
-    ShellCommandType type;     /* 命令类型: 0=普通命令, 1=变量命令, 2=参数适配模式命令 */
-    unsigned char    paramNum; /* 参数适配模式下的参数数量 */
-} shell_cmd_t;
+/**
+ * @brief 导出变量宏
+ * @param _name 变量名（不加引号）
+ * @param _ptr  变量指针
+ * @param _type 变量类型 (SHELL_VAR_INT/UINT/FLOAT/BOOL/STRING)
+ */
+#define SHELL_EXPORT_VAR(_name, _ptr, _type) \
+    SHELL_USED const shell_var_t __shell_var_##_name SHELL_VAR_SECTION = { \
+        .name = #_name, \
+        .ptr = (void*)(_ptr), \
+        .type = _type, \
+        .readonly = 0, \
+    }
+
+/**
+ * @brief 导出只读变量宏
+ */
+#define SHELL_EXPORT_VAR_RO(_name, _ptr, _type) \
+    SHELL_USED const shell_var_t __shell_var_##_name SHELL_VAR_SECTION = { \
+        .name = #_name, \
+        .ptr = (void*)(_ptr), \
+        .type = _type, \
+        .readonly = 1, \
+    }
+
+/* 变量段符号 */
+#if defined(__CC_ARM) || defined(__ARMCC_VERSION)
+    extern const shell_var_t Image$$SHELL_VAR$$Base[];
+    extern const shell_var_t Image$$SHELL_VAR$$Limit[];
+    #define __shell_var_start  Image$$SHELL_VAR$$Base
+    #define __shell_var_end    Image$$SHELL_VAR$$Limit
+#elif defined(__ICCARM__)
+    #pragma section = ".shell_var"
+    #define __shell_var_start  ((const shell_var_t *)__section_begin(".shell_var"))
+    #define __shell_var_end    ((const shell_var_t *)__section_end(".shell_var"))
+#else
+    extern const shell_var_t __shell_var_start[];
+    extern const shell_var_t __shell_var_end[];
+#endif
+
+#define SHELL_VAR_LIST()   (__shell_var_start)
+#define SHELL_VAR_COUNT()  ((uint16_t)(__shell_var_end - __shell_var_start))
+
+#endif /* SHELL_USING_VAR */
+
+/* 
+ * 宏导出功能说明：
+ * Keil scatter 文件需要添加 SHELL_CMD 区域
+ * 使用 SHELL_EXPORT_CMD 宏在任意 .c 文件中注册命令
+ */
+#if SHELL_USING_CMD_EXPORT
+#if defined(__CC_ARM) || defined(__ARMCC_VERSION)
+    /* Keil/ARMCC: 使用链接器区域符号 (SHELL_CMD 是 scatter 文件中的执行区域名) */
+    extern const shell_cmd_t Image$$SHELL_CMD$$Base[];
+    extern const shell_cmd_t Image$$SHELL_CMD$$Limit[];
+    #define __shell_cmd_start  Image$$SHELL_CMD$$Base
+    #define __shell_cmd_end    Image$$SHELL_CMD$$Limit
+#elif defined(__ICCARM__)
+    /* IAR: 使用段属性 */
+    #pragma section = ".shell_cmd"
+    #define __shell_cmd_start  ((const shell_cmd_t *)__section_begin(".shell_cmd"))
+    #define __shell_cmd_end    ((const shell_cmd_t *)__section_end(".shell_cmd"))
+#else
+    /* GCC: 使用标准段符号 */
+    extern const shell_cmd_t __shell_cmd_start[];
+    extern const shell_cmd_t __shell_cmd_end[];
+#endif
+
+/* 获取导出命令列表 */
+#define SHELL_CMD_LIST()   (__shell_cmd_start)
+#define SHELL_CMD_COUNT()  ((uint16_t)(__shell_cmd_end - __shell_cmd_start))
+#endif  /* SHELL_USING_CMD_EXPORT */
 
 /* Shell控制块 */
 typedef struct
 {
-    const char* name;                       /* Shell实例名称 (如"UART1", "USB", "TCP") */
-    char        cmd_buffer[SHELL_CMD_SIZE]; /* 命令缓冲区 */
-    uint16_t    cmd_pos;                    /* 当前光标位置 */
-    uint16_t    cmd_len;                    /* 当前命令长度 */
+    char     cmd_buf[SHELL_CMD_SIZE];
+    uint16_t cmd_len;
+    uint16_t cmd_pos;
 
 #if SHELL_USING_HISTORY
-    char    history[SHELL_HISTORY_MAX][SHELL_CMD_SIZE]; /* 历史记录 */
-    uint8_t history_count;                              /* 历史记录数量 */
-    uint8_t history_index;                              /* 当前历史索引 */
-    uint8_t history_cur;                                /* 当前浏览的历史 */
+    char    hist[SHELL_HISTORY_MAX][SHELL_CMD_SIZE];
+    uint8_t hist_cnt;
+    uint8_t hist_idx;
+    uint8_t hist_cur;
 #endif
 
-    const shell_cmd_t* cmd_list;  /* 命令列表 */
-    uint16_t           cmd_count; /* 命令数量 */
+#if SHELL_RX_BUF_SIZE > 0
+    /* 内置环形接收缓冲区 */
+    volatile uint8_t  rx_buf[SHELL_RX_BUF_SIZE];
+    volatile uint16_t rx_head;  /* 写入位置 (中断写) */
+    volatile uint16_t rx_tail;  /* 读取位置 (主循环读) */
+#endif
 
-    uint8_t esc_state;     /* ESC序列状态 */
-    uint8_t esc_buffer[4]; /* ESC序列缓冲 */
-    uint8_t esc_index;     /* ESC序列索引 */
+    const shell_cmd_t* cmds;
+    uint16_t           cmd_cnt;
+
+    uint8_t esc_state;
+    uint8_t esc_buf[4];
+    uint8_t esc_idx;
+    uint8_t is_active;  /* 命令执行中标志，用于尾行模式优化 */
+
+#if SHELL_USING_PASSTHROUGH
+    uint8_t passthrough;
+    void (*pt_handler)(uint8_t ch);
+#endif
 
 #if SHELL_USING_AUTH
-    const shell_user_t*     current_user;                         /* 当前登录用户 */
-    char                    password_buffer[SHELL_PASSWORD_SIZE]; /* 密码输入缓冲 */
-    uint8_t                 login_tries;                          /* 登录尝试次数 */
-    uint8_t                 login_state;     /* 登录状态: 0=未登录, 1=输入用户名, 2=输入密码, 3=已登录 */
-    shell_password_verify_t password_verify; /* 密码验证回调函数 */
+    const shell_user_t* users;      /* 用户列表 */
+    uint8_t             user_cnt;   /* 用户数量 */
+    const shell_user_t* cur_user;   /* 当前用户 */
+    uint8_t             is_checked; /* 密码已校验 */
 #endif
 
-    struct
-    {
-        unsigned char isChecked   : 1; /**< 密码校验通过 */
-        unsigned char isActive    : 1; /**< 当前活动Shell */
-        unsigned char passthrough : 1; /**< 透传模式 */
-    } status;
-
-    /* 透传回调函数 */
-    void (*passthrough_handler)(uint8_t ch);
-
-    /* 底层IO函数 */
     void (*write)(const char* data, uint16_t len);
     int (*read)(char* data, uint16_t len);
 } shell_t;
 
-/* Shell API */
-void shell_init(shell_t* shell, const shell_cmd_t* cmd_list, uint16_t cmd_count);
-void shell_init_ex(shell_t* shell, const char* name, const shell_cmd_t* cmd_list, uint16_t cmd_count,
-                   void (*write_func)(const char* data, uint16_t len), int (*read_func)(char* data, uint16_t len));
-void shell_set_io(shell_t* shell, void (*write_func)(const char* data, uint16_t len),
-                  int (*read_func)(char* data, uint16_t len));
-void shell_task(shell_t* shell);
-void shell_log(const char* buffer, int len);
-void shell_log_to(shell_t* shell, const char* buffer, int len); /* 定向输出日志 */
-void shellHandler(shell_t* shell, char data);                   /* 中断安全的字符处理函数 */
+/* 全局shell指针 */
+extern shell_t* g_shell;
 
-/* 多Shell管理API */
-void     shellAdd(shell_t* shell, const char* name);
-void     shellRemove(shell_t* shell);
-shell_t* shellGetCurrent(void);
-shell_t* shellGetByName(const char* name);
-int      shell_get_count(void);
+/* API */
+void shell_init(shell_t* sh, const shell_cmd_t* cmds, uint16_t cnt, void (*write)(const char*, uint16_t),
+                int (*read)(char*, uint16_t));
+void shell_task(shell_t* sh);
+void shell_input(shell_t* sh, char ch);
+void shell_print(shell_t* sh, const char* str);
+void shell_printf(shell_t* sh, const char* fmt, ...);
+void shell_log(const char* buf, int len);
 
-/* 透传模式API */
-void shell_passthrough_add_handler(shell_t* shell, void (*handler)(uint8_t ch));
-
-#if SHELL_USING_AUTH
-/* 用户权限管理API */
-void                shell_user_init(const shell_user_t* users, uint16_t user_count);
-int                 shell_login(shell_t* shell, const char* username, const char* password);
-void                shell_logout(shell_t* shell);
-const shell_user_t* shell_get_current_user(shell_t* shell);
-shell_auth_level_t  shell_get_auth_level(shell_t* shell);
-int                 shell_check_permission(shell_t* shell, shell_auth_level_t required_level);
-const char*         shell_get_auth_name(shell_auth_level_t level);
-void                shell_set_password_verify(shell_t* shell, shell_password_verify_t verify_func);
+/* 环形缓冲区API (中断安全) */
+#if SHELL_RX_BUF_SIZE > 0
+void shell_rx_push(shell_t* sh, uint8_t ch);       /* 中断中调用: 写入单字节 */
+void shell_rx_push_buf(shell_t* sh, const uint8_t* data, uint16_t len); /* 中断中调用: 写入多字节 */
+int  shell_rx_read(shell_t* sh, char* buf, uint16_t max_len); /* 主循环调用: 读取数据 */
 #endif
 
-/* 辅助函数 */
-void shell_print(shell_t* shell, const char* str);
-void shell_printf(shell_t* shell, const char* format, ...);
+#if SHELL_USING_PASSTHROUGH
+void shell_set_passthrough(shell_t* sh, void (*handler)(uint8_t));
+void shell_exit_passthrough(shell_t* sh);
+#endif
 
 /* 内置命令 */
-int shell_cmd_help(int argc, char* argv[]);
-int shell_cmd_clear(int argc, char* argv[]);
-int shell_cmd_history(int argc, char* argv[]);
-int shell_cmd_logout(int argc, char* argv[]);
-int shell_cmd_echo(int argc, char* argv[]);
-int shell_cmd_version(int argc, char* argv[]);
-/* 内置命令列表获取 */
-const shell_cmd_t* shell_get_builtin_commands(uint16_t* count);
+int cmd_help(int argc, char* argv[]);
+int cmd_clear(int argc, char* argv[]);
+#if SHELL_USING_HISTORY
+int cmd_history(int argc, char* argv[]);
+#endif
+#if SHELL_USING_VAR
+int cmd_var(int argc, char* argv[]);
+int cmd_vars(int argc, char* argv[]);
+#endif
 
-/* 外部命令列表声明 */
-extern const shell_cmd_t* shell_commands;
-extern uint16_t           shell_cmd_count;
+#if SHELL_USING_AUTH
+/* 用户认证 API */
+void shell_set_users(shell_t* sh, const shell_user_t* users, uint8_t cnt);
+int  shell_login(shell_t* sh, const char* name, const char* password);
+void shell_logout(shell_t* sh);
+int  cmd_login(int argc, char* argv[]);
+int  cmd_logout(int argc, char* argv[]);
+int  cmd_whoami(int argc, char* argv[]);
+#endif
 
-/* 命令列表初始化 */
-void shell_commands_init(void);
+/* 使用导出命令初始化 (配合 SHELL_EXPORT_CMD 宏，需链接脚本支持) */
+#if SHELL_USING_CMD_EXPORT
+#define shell_init_export(sh, write, read) \
+    shell_init(sh, SHELL_CMD_LIST(), SHELL_CMD_COUNT(), write, read)
+#endif
 
-/* 扩展命令执行(参数适配模式) */
-int shellExtRun(shell_t* shell, shell_cmd_t* command, int argc, char* argv[]);
-
-/* ===========================================================================
- *                          命令导出宏定义
- * ===========================================================================
- * 说明:
- * - 这些宏用于在代码中快速定义命令
- * - 根据是否启用权限管理,自动选择合适的宏
- * - 命令会被放入.shell_cmd段,由链接脚本收集
- * =========================================================================== */
-
-// #if SHELL_USING_AUTH
-///* 启用权限管理时的命令导出宏 */
-// #def ine  SHELL_EXPORT_CMD(name, desc, func, auth)                                  \
-//    const shell_cmd_t __shell_cmd_##func __attribute__((section(".shell_cmd"))) = \
-//        {name, desc, func, auth, SHELL_TYPE_CMD_MAIN, 0}
-
-//#define SHELL_EXPORT_CMD_EX(name, desc, func, auth, type, paramNum)               \
-//    const shell_cmd_t __shell_cmd_##func __attribute__((section(".shell_cmd"))) = \
-//        {name, desc, func, auth, type, paramNum}
-
-// #else
-///* 未启用权限管理时的命令导出宏(权限默认为GUEST) */
-// #def ine  SHELL_EXPORT_CMD(name, desc, func)                                        \
-//    const shell_cmd_t __shell_cmd_##func __attribute__((section(".shell_cmd"))) = \
-//        {name, desc, func, SHELL_AUTH_GUEST, SHELL_TYPE_CMD_MAIN, 0}
-
-//#define SHELL_EXPORT_CMD_EX(name, desc, func, type, paramNum)                     \
-//    const shell_cmd_t __shell_cmd_##func __attribute__((section(".shell_cmd"))) = \
-//        {name, desc, func, SHELL_AUTH_GUEST, type, paramNum}
-
-// #endif /* SHELL_USING_AUTH */
-
-#endif /* __SHELL_H */
+#endif

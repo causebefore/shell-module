@@ -1,11 +1,5 @@
 # =============================================================
-# Shell Module CI — 嵌入式 C 模块持续集成
-# =============================================================
-# 触发条件: push/PR 到 master，且涉及源码或测试文件变更
-# 流水线:
-#   1. host-test    — 主机端 Unity 单元测试 (GCC, Linux)
-#   2. arm-build    — ARM Cortex-M 交叉编译验证 (arm-none-eabi-gcc)
-#   3. static-analysis — 静态分析 (cppcheck)
+# Shell Module CI — 调用通用嵌入式 CI 工作流
 # =============================================================
 
 name: CI
@@ -26,75 +20,30 @@ on:
       - "test/**"
       - ".github/workflows/**"
 
-# ---- Job 1: 主机端单元测试 ----
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  host-test:
-    name: Unity 单元测试
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 下载 Unity 框架
-        run: |
-          cd test
-          git clone --depth 1 https://github.com/ThrowTheSwitch/Unity.git unity
-
-      - name: 编译测试
-        run: |
-          cd test
-          make build
-
-      - name: 运行测试
-        run: |
-          cd test
-          make run
-
-  # ---- Job 2: ARM 交叉编译 ----
-  arm-build:
-    name: ARM Cortex-M 编译检查
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 安装 ARM 工具链
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-arm-none-eabi
-
-      - name: 编译核心模块 (仅语法检查)
-        run: |
-          arm-none-eabi-gcc \
-            -c -mcpu=cortex-m4 -mthumb -std=c99 \
-            -Wall -Wextra -Werror \
-            -Wno-unused-parameter \
-            -fsyntax-only \
-            -DSHELL_USING_CMD_EXPORT=0 \
-            -DSHELL_USING_VAR=0 \
-            -I. \
-            shell.c
-
-  # ---- Job 3: 静态分析 ----
-  static-analysis:
-    name: Cppcheck 静态分析
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 安装 cppcheck
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq cppcheck
-
-      - name: 运行 cppcheck
-        run: |
-          cppcheck \
-            --enable=warning,style,performance \
-            --error-exitcode=1 \
-            --suppress=missingIncludeSystem \
-            --suppress=unusedFunction \
-            --suppress=comparePointers \
-            -I. \
-            shell.c shell.h shell_cfg.h
+  ci:
+    uses: causebefore/embedded-ci/.github/workflows/embedded-ci.yml@v1
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      source-files: "shell.c"
+      include-dirs: "-I."
+      arm-defines: "-DSHELL_USING_CMD_EXPORT=0 -DSHELL_USING_VAR=0"
+      arm-cpus: '["cortex-m0","cortex-m3","cortex-m4"]'
+      enable-format-check: true
+      cppcheck-files: "shell.c shell.h shell_cfg.h"
+      cppcheck-suppress: "missingIncludeSystem,unusedFunction,comparePointers"
+      copilot-instructions: |
+        这是一个 ARM Cortex-M 裸机嵌入式 CLI 模块。
+        审查重点:
+        - 禁止动态内存分配 (malloc/free)
+        - 所有指针参数必须做 NULL 检查
+        - ISR 安全: volatile、中断上下文中禁止阻塞
+        - 禁止裸 int/short/long，使用 stdint.h 固定宽度类型
+        - 缓冲区溢出检查
+        - 栈使用量 (避免大局部数组)

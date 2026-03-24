@@ -1,65 +1,96 @@
 /**
  * @file    shell_port.c
- * @brief   Shell移植层 - UART1 DMA发送 + DMA空闲接收
+ * @brief   Shell移植层 - UART3 中断收发 + LWRB环形缓冲区
  *
- * 方式1: DMA空闲接收 (当前使用)
- *   - 使用 HAL_UARTEx_ReceiveToIdle_DMA 进行批量接收
- *   - 适合高波特率、大数据量场景
- *
- * 方式2: 中断接收 + 内置环形缓冲区 (见文件末尾示例)
- *   - 在UART中断中调用 shell_rx_push()
- *   - shell_init 时 read 参数传 NULL
- *   - 适合简单场景，无需DMA
+ * 使用 LWRB 库实现收发缓冲区
+ * 适用于无DMA的串口
  */
 
 #include "shell_port.h"
 
+#include "lwrb.h"
 #include "usart.h"
 
 #include <string.h>
 
 /* Shell实例 */
-shell_t g_shell_usart1;
+shell_t g_shell_usart3;
 
-/* DMA接收缓冲区 (独立于shell内置缓冲区) */
+/* ==================== LWRB 环形缓冲区 ==================== */
+
+#define PORT_TX_BUF_SIZE 1024
 #define PORT_RX_BUF_SIZE 64
-static uint8_t           s_rx_buf[PORT_RX_BUF_SIZE];
-static volatile uint16_t s_rx_len  = 0;
-static volatile uint8_t  s_rx_flag = 0;
+
+static lwrb_t           s_tx_rb;                    /* 发送环形缓冲区 */
+static lwrb_t           s_rx_rb;                    /* 接收环形缓冲区 */
+static uint8_t          s_tx_buf[PORT_TX_BUF_SIZE]; /* 发送缓冲区数据 */
+static uint8_t          s_rx_buf[PORT_RX_BUF_SIZE]; /* 接收缓冲区数据 */
+static volatile uint8_t s_tx_busy = 0;              /* 发送忙标志 */
 
 /* ==================== IO实现 ==================== */
 
-static void shell_write_impl(const char* data, uint16_t len)
+/**
+ * @brief 启动发送（从缓冲区取数据发送）
+ */
+static void shell_start_tx(void)
 {
-    UART_DMA_TxBuffer_Write(&huart1, (const uint8_t*) data, len);
-}
-
-static int shell_read_impl(char* data, uint16_t len)
-{
-    if (s_rx_flag && s_rx_len > 0)
+    if (s_tx_busy)
     {
-        uint16_t copy_len = (s_rx_len < len) ? s_rx_len : len;
-        memcpy(data, s_rx_buf, copy_len);
-        s_rx_flag = 0;
-
-        /* 重新启动DMA接收 */
-        HAL_UARTEx_ReceiveToIdle_DMA(&huart1, s_rx_buf, PORT_RX_BUF_SIZE);
-        __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT); /* 禁用半传输中断 */
-
-        return copy_len;
+        return; /* 正在发送中 */
     }
-    return 0;
+
+    /* 检查是否有数据要发送 */
+    if (lwrb_get_full(&s_tx_rb) > 0)
+    {
+        s_tx_busy = 1;
+        /* 使能TXE中断，让中断处理函数来发送数据 */
+        __HAL_UART_ENABLE_IT(&huart3, UART_IT_TXE);
+    }
 }
 
 /**
- * @brief HAL UART空闲回调 - 在 stm32f4xx_it.c 中被 HAL_UART_IRQHandler 调用
+ * @brief Shell写函数 - 写入发送缓冲区
  */
-void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef* huart, uint16_t Size)
+static void shell_write_impl(const char* data, uint16_t len)
 {
-    if (huart->Instance == USART1)
+    lwrb_write(&s_tx_rb, data, len);
+    shell_start_tx();
+}
+
+/**
+ * @brief Shell读函数 - 从接收缓冲区读取
+ */
+static int shell_read_impl(char* data, uint16_t len)
+{
+    return (int) lwrb_read(&s_rx_rb, data, len);
+}
+
+/**
+ * @brief UART3 中断处理 - 在 stm32f4xx_it.c 的 USART3_IRQHandler 中调用
+ * @note 需要在 USART3_IRQHandler 中添加: shell_uart3_irq_handler();
+ */
+void shell_uart3_irq_handler(void)
+{
+    /* 接收中断 */
+    if (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_RXNE))
     {
-        s_rx_len  = Size;
-        s_rx_flag = 1;
+        uint8_t ch = (uint8_t) (huart3.Instance->DR & 0xFF);
+        lwrb_write(&s_rx_rb, &ch, 1); /* 写入接收缓冲区 */
+    }
+
+    /* 发送空中断 */
+    if (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_TXE) && __HAL_UART_GET_IT_SOURCE(&huart3, UART_IT_TXE))
+    {
+        uint8_t ch;
+        if (lwrb_read(&s_tx_rb, &ch, 1) == 1)
+        {
+            huart3.Instance->DR = ch; /* 发送下一个字节 */
+        }
+        else
+        {
+            __HAL_UART_DISABLE_IT(&huart3, UART_IT_TXE); /* 禁用发送空中断 */
+            s_tx_busy = 0;
+        }
     }
 }
 
@@ -168,56 +199,23 @@ SHELL_EXPORT_VAR_RO(version, &s_version, SHELL_VAR_STRING);
 
 void my_shell_init(void)
 {
+    /* 初始化LWRB环形缓冲区 */
+    lwrb_init(&s_tx_rb, s_tx_buf, sizeof(s_tx_buf));
+    lwrb_init(&s_rx_rb, s_rx_buf, sizeof(s_rx_buf));
+
     /* 初始化shell (使用宏导出命令) */
-    shell_init_export(&g_shell_usart1, shell_write_impl, shell_read_impl);
+    shell_init_export(&g_shell_usart3, shell_write_impl, shell_read_impl);
 
 #if SHELL_USING_AUTH
     /* 设置用户列表 */
-    shell_set_users(&g_shell_usart1, s_shell_users, USER_COUNT);
+    shell_set_users(&g_shell_usart3, s_shell_users, USER_COUNT);
 #endif
 
-    /* 启动DMA接收 (空闲中断模式) */
-    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, s_rx_buf, PORT_RX_BUF_SIZE);
-    __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT); /* 禁用半传输中断 */
+    /* 启用UART3接收中断 */
+    __HAL_UART_ENABLE_IT(&huart3, UART_IT_RXNE);
 }
 
 void my_shell_task(void)
 {
-    shell_task(&g_shell_usart1);
+    shell_task(&g_shell_usart3);
 }
-
-/* ==================== 方式2: 中断接收示例 (无需DMA) ==================== */
-#if 0 /* 启用此方式时改为 1, 并禁用上方DMA相关代码 */
-
-/**
- * 使用内置环形缓冲区的初始化方式:
- * 1. shell_init 时 read 参数传 NULL
- * 2. 在 UART 接收中断中调用 shell_rx_push()
- */
-
-void my_shell_init_simple(void)
-{
-    /* read=NULL 时 shell_task 自动使用内置环形缓冲区 */
-    shell_init_export(&g_shell_usart1, shell_write_impl, NULL);
-
-    #if SHELL_USING_AUTH
-    shell_set_users(&g_shell_usart1, s_shell_users, USER_COUNT);
-    #endif
-
-    /* 启用UART接收中断 */
-    __HAL_UART_ENABLE_IT(&huart1, UART_IT_RXNE);
-}
-
-/**
- * UART 接收中断处理 (在 stm32f4xx_it.c 的 USART1_IRQHandler 中调用)
- */
-void shell_uart_irq_handler(void)
-{
-    if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_RXNE))
-    {
-        uint8_t ch = (uint8_t)(huart1.Instance->DR & 0xFF);
-        shell_rx_push(&g_shell_usart1, ch);  /* 写入内置环形缓冲区 */
-    }
-}
-
-#endif /* 方式2示例 */

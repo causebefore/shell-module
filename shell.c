@@ -73,7 +73,7 @@ shell_t* g_shell = NULL;
 
 void shell_print(shell_t* sh, const char* str)
 {
-    if (sh && sh->write)
+    if (sh && sh->write && str)
     {
         sh->write(str, strlen(str));
     }
@@ -191,7 +191,7 @@ static void refresh_line(shell_t* sh)
 {
     shell_print(sh, ANSI_CLEARLN);
     show_prompt(sh);
-    if (sh->cmd_len > 0)
+    if (sh->cmd_len > 0 && sh->write)
     {
         sh->write(sh->cmd_buf, sh->cmd_len);
     }
@@ -581,6 +581,8 @@ static void handle_esc(shell_t* sh, char ch)
                     shell_print(sh, ANSI_LEFT);
                 }
                 break;
+            default:
+                break;
         }
         sh->esc_state = 0;
         sh->esc_idx   = 0;
@@ -712,10 +714,9 @@ void shell_task(shell_t* sh)
         return;
     }
 
-    static uint8_t init = 0;
-    if (!init)
+    if (!sh->is_inited)
     {
-        init = 1;
+        sh->is_inited = 1;
         shell_print(sh, ANSI_CLEAR);
         shell_print(sh, STR_BANNER);
         show_prompt(sh);
@@ -778,14 +779,14 @@ void shell_log(const char* buf, int len)
     }
 
     /* 空闲状态: 清行 + 日志 + 恢复提示符和命令 */
-    static char out_buf[256];
-    int         pos = 0;
+    char out_buf[256];
+    int  pos = 0;
 
     /* 回到行首 */
     out_buf[pos++] = '\r';
 
     /* 日志内容 */
-    for (int i = 0; i < len && pos < sizeof(out_buf) - 1; i++)
+    for (int i = 0; i < len && pos < (int) sizeof(out_buf) - 1; i++)
     {
         out_buf[pos++] = buf[i];
     }
@@ -795,26 +796,26 @@ void shell_log(const char* buf, int len)
     if (sh->cur_user && sh->is_checked)
     {
         const char* name = sh->cur_user->name;
-        while (*name && pos < sizeof(out_buf) - 1)
+        while (*name && pos < (int) sizeof(out_buf) - 1)
         {
             out_buf[pos++] = *name++;
         }
     }
 #endif
     const char* prompt = SHELL_PROMPT;
-    while (*prompt && pos < sizeof(out_buf) - 1)
+    while (*prompt && pos < (int) sizeof(out_buf) - 1)
     {
         out_buf[pos++] = *prompt++;
     }
 
     /* 当前命令 */
-    for (int i = 0; i < sh->cmd_len && pos < sizeof(out_buf) - 1; i++)
+    for (int i = 0; i < sh->cmd_len && pos < (int) sizeof(out_buf) - 1; i++)
     {
         out_buf[pos++] = sh->cmd_buf[i];
     }
 
     /* 清除光标到行尾的残留字符 */
-    if (pos < sizeof(out_buf) - 4)
+    if (pos < (int) sizeof(out_buf) - 4)
     {
         out_buf[pos++] = '\033';
         out_buf[pos++] = '[';
@@ -822,7 +823,7 @@ void shell_log(const char* buf, int len)
     }
 
     /* 光标定位 (移回当前位置) */
-    for (int i = sh->cmd_len - sh->cmd_pos; i > 0 && pos < sizeof(out_buf) - 4; i--)
+    for (int i = sh->cmd_len - sh->cmd_pos; i > 0 && pos < (int) sizeof(out_buf) - 4; i--)
     {
         out_buf[pos++] = '\033';
         out_buf[pos++] = '[';
@@ -994,6 +995,8 @@ static void print_var(shell_t* sh, const shell_var_t* var)
         case SHELL_VAR_STRING:
             shell_printf(sh, "%s = \"%s\"", var->name, *(const char**) var->ptr);
             break;
+        default:
+            break;
     }
     if (var->readonly)
     {
@@ -1059,6 +1062,8 @@ int cmd_var(int argc, char* argv[])
         case SHELL_VAR_STRING:
             shell_print(sh, STR_VAR_CANT_MODIFY);
             return -1;
+        default:
+            break;
     }
 
     print_var(sh, var);
@@ -1156,6 +1161,10 @@ int shell_login(shell_t* sh, const char* name, const char* password)
 
 void shell_logout(shell_t* sh)
 {
+    if (!sh)
+    {
+        return;
+    }
     sh->cur_user   = NULL;
     sh->is_checked = 0;
 }

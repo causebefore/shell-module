@@ -1,0 +1,49 @@
+# ==================== 构建产物 ====================
+*.o
+*.obj
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.axf
+*.sct
+*.htm
+*.dep
+*.d
+*.i
+*.s
+
+# ==================== 测试构建 ====================
+test/*.exe
+test/*.o
+
+# ==================== Unity框架 (通过git clone获取) ====================
+test/unity/
+
+# ==================== IDE / 编辑器 ====================
+.vscode/
+*.code-workspace
+
+# Keil MDK
+*.uvoptx
+*.uvguix.*
+*.bak
+*.lnp
+*.crf
+*.tra
+RTE/
+Listings/
+Objects/
+DebugConfig/
+
+# IAR
+Debug/
+Release/
+settings/
+*.ewt
+*.dep
+
+# ==================== 操作系统 ====================
+Thumbs.db
+.DS_Store

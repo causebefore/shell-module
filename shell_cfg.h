@@ -15,6 +15,11 @@
 /* 接收缓冲区配置 (环形缓冲区, 0=不使用内置缓冲) */
 #define SHELL_RX_BUF_SIZE 64 /* 接收环形缓冲区大小, 必须是2的幂 */
 
+/* 编译时校验: SHELL_RX_BUF_SIZE 必须是2的幂 */
+#if SHELL_RX_BUF_SIZE > 0 && (SHELL_RX_BUF_SIZE & (SHELL_RX_BUF_SIZE - 1)) != 0
+    #error "SHELL_RX_BUF_SIZE must be a power of 2"
+#endif
+
 /* 功能开关 - 只保留核心功能 */
 #define SHELL_USING_CMD_EXPORT  1 /* 使用宏导出命令 (需链接脚本支持) */
 #define SHELL_USING_VAR         1 /* 变量读写功能 */

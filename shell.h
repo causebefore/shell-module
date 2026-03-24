@@ -253,6 +253,7 @@ typedef struct
     uint8_t esc_buf[4];
     uint8_t esc_idx;
     uint8_t is_active;  /* 命令执行中标志，用于尾行模式优化 */
+    uint8_t is_inited;  /* 首次任务初始化标志 */
 
 #if SHELL_USING_PASSTHROUGH
     uint8_t passthrough;

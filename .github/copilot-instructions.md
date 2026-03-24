@@ -1,129 +1,51 @@
-# GitHub Copilot Instructions
+# Shell Module — 项目指南
 
-## Project Overview
+轻量级嵌入式 CLI 模块，面向 ARM Cortex-M 裸机环境，通过 UART 提供交互式命令行。
 
-This repository contains a lightweight, embeddable shell module written in C for embedded systems. The shell provides a command-line interface (CLI) with features like command export macros, variable management, command history, tab completion, passthrough mode, and user authentication.
+## 架构
 
-**Key Technologies:**
-- Language: C (C11 standard)
-- Target: Embedded systems
-- Features: Command registration, variable export, history, completion, authentication
+| 文件                            | 职责                                                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `shell.h` / `shell.c`           | 核心实现：命令解析、行编辑、ESC序列、历史记录、Tab补全、变量读写、权限认证、透传模式、日志尾行输出 |
+| `shell_cfg.h`                   | 功能开关与参数配置（缓冲区大小、功能裁剪宏）                                                       |
+| `shell_port.h` / `shell_port.c` | 移植层：硬件 IO 适配、用户/命令/变量注册（示例基于 STM32 HAL + LWRB）                              |
 
-## Code Style and Formatting
+**核心设计决策：**
 
-### Formatting Tool
-- Use `clang-format` (version 21+) for all C code formatting
-- Configuration is defined in `.clang-format` at the repository root
-- **Always run clang-format before committing code changes**
+- 命令通过 `SHELL_EXPORT_CMD` 宏 + 链接器 section 自动注册，无需集中式命令表
+- 变量通过 `SHELL_EXPORT_VAR` 宏导出，支持运行时读写
+- 支持 Keil(ARMCC)、GCC、IAR 三种编译器的 section 语法
+- `shell_t` 控制块静态分配，零动态内存
 
-### Style Guidelines
-- **Brace Style**: Allman style (braces on separate lines)
-- **Indentation**: 4 spaces (no tabs)
-- **Line Length**: Maximum 120 characters
-- **Comments**: Use Chinese comments in headers for function/module descriptions (existing convention)
-- **Naming Conventions**:
-  - Functions: `snake_case` (e.g., `shell_init`, `shell_process`)
-  - Macros/Constants: `UPPER_SNAKE_CASE` (e.g., `SHELL_CMD_SIZE`)
-  - Types: `snake_case_t` suffix (e.g., `shell_cmd_t`, `shell_var_type_t`)
-  - Struct member names: `snake_case`
+## 代码规范
 
-## Build Instructions
+- 使用 `stdint.h` 固定宽度类型，禁止裸 `int`/`short`/`long`（命令回调签名 `int func(int argc, char* argv[])` 除外，这是惯例接口）
+- 禁止 `malloc`/`free`，所有内存静态分配
+- 硬件寄存器访问使用 `volatile`
+- 静态局部变量前缀 `s_`，全局变量前缀 `g_`
+- 中文注释
+- 字符串常量集中定义为 `STR_xxx` 宏，便于多语言和自定义
 
-This is a library module designed to be integrated into embedded projects. There is no standalone build system in the repository root.
+## 移植要点
 
-**Integration:**
-- Include `shell.h` in your project
-- Compile `shell.c` and `shell_port.c` with your project's build system
-- Implement platform-specific functions in `shell_port.c` if needed
-- Link the compiled objects with your application
+适配新硬件时只需修改 `shell_port.c`：
 
-**Example Compilation:**
-```bash
-# For testing/validation purposes
-gcc -c shell.c -o shell.o -std=c11 -Wall -Wextra
-gcc -c shell_port.c -o shell_port.o -std=c11 -Wall -Wextra
-```
+1. 实现 `write` 回调（发送数据到串口）
+2. 实现 `read` 回调（从缓冲区读取接收数据），或使用内置环形缓冲区 + `shell_rx_push()`
+3. 配置用户表（若启用 `SHELL_USING_AUTH`）
+4. 在主循环中周期调用 `shell_task()`
 
-## Configuration
+## 功能裁剪
 
-The shell module is highly configurable through `shell_cfg.h`:
+通过 `shell_cfg.h` 中的宏开关控制功能编译：
 
-- `SHELL_USING_CMD_EXPORT`: Enable macro-based command export (requires linker script support)
-- `SHELL_USING_VAR`: Enable variable read/write functionality
-- `SHELL_USING_HISTORY`: Enable command history
-- `SHELL_USING_COMPLETION`: Enable tab completion
-- `SHELL_USING_PASSTHROUGH`: Enable passthrough mode
-- `SHELL_USING_AUTH`: Enable user authentication
+- `SHELL_USING_CMD_EXPORT` — 宏导出命令（需链接脚本）
+- `SHELL_USING_VAR` — 变量读写
+- `SHELL_USING_HISTORY` — 历史记录
+- `SHELL_USING_COMPLETION` — Tab 补全
+- `SHELL_USING_PASSTHROUGH` — 透传模式
+- `SHELL_USING_AUTH` — 用户权限认证
 
-**Do not modify configuration defaults without good reason.** These are carefully chosen for embedded use cases.
+## 链接脚本
 
-## Testing
-
-Currently, there is no automated test infrastructure in this repository. When making changes:
-
-1. Manually verify code compiles without warnings using GCC/Clang
-2. Check that changes don't break existing functionality
-3. Test edge cases for any new features
-4. Validate changes work in both authenticated and non-authenticated modes (when applicable)
-
-## Embedded Systems Considerations
-
-This code is designed for resource-constrained embedded systems:
-
-- **Memory Usage**: Be mindful of stack and heap allocation
-- **Buffer Sizes**: All buffer sizes are configurable in `shell_cfg.h`
-- **No Dynamic Allocation**: Avoid using `malloc`/`free` unless absolutely necessary
-- **Thread Safety**: The shell is not thread-safe by design; document any concurrency requirements
-- **Platform Abstraction**: Use `shell_port.c` for platform-specific implementations
-
-## Special Rules
-
-- **No Breaking Changes**: Maintain backward compatibility with existing API
-- **Minimize Dependencies**: Keep external dependencies to a minimum (currently only standard C library)
-- **Security**: Be cautious with buffer operations to avoid overflows
-- **Password Handling**: Use the existing hash mechanism (`SHELL_USING_HASH_PWD`) for passwords
-- **Documentation**: Update function comments when changing behavior
-- **Error Handling**: Return appropriate error codes; use existing error handling patterns
-
-## File Structure
-
-- `shell.h` - Public API and type definitions
-- `shell.c` - Core shell implementation
-- `shell_cfg.h` - Configuration options
-- `shell_port.h` - Platform-specific function declarations
-- `shell_port.c` - Platform-specific implementations
-- `.clang-format` - Code formatting rules
-
-## Common Patterns
-
-### Command Registration
-Commands are registered using the `SHELL_EXPORT_CMD` macro (4 parameters):
-
-```c
-// Standard usage (provide permission even if SHELL_USING_AUTH is disabled):
-SHELL_EXPORT_CMD(help, "Show commands", cmd_help, SHELL_PERM_NONE);
-SHELL_EXPORT_CMD(test, "Test command", cmd_test, SHELL_PERM_USER);
-
-// For tab completion (when SHELL_USING_COMPLETION enabled):
-SHELL_EXPORT_CMD_LIST(mode, "Set mode", cmd_mode, SHELL_PERM_NONE, mode_options);
-```
-
-**Note**: The name parameter is provided without quotes (e.g., `help`, not `"help"`).
-
-### Variable Export
-Variables are exported using the `SHELL_EXPORT_VAR` macro (3 parameters):
-```c
-// Read-write variable (provide name without quotes):
-SHELL_EXPORT_VAR(test_int, &s_test_int, SHELL_VAR_INT);
-
-// Read-only variable:
-SHELL_EXPORT_VAR_RO(version, &version_string, SHELL_VAR_STRING);
-```
-
-## Forbidden Patterns
-
-- **Do not use `printf` directly** - Use `shell_printf` for output
-- **Do not modify the README encoding** - It currently uses UTF-16 LE for Chinese characters; changing this may corrupt the file
-- **Use C11 standard features judiciously** - Ensure compatibility with common embedded toolchains
-- **Never hardcode passwords or credentials** in the code
-- **Do not break the modular structure** - Keep platform-specific code in `shell_port.c`
+GCC 需要在链接脚本中添加 `.shell_cmd` 和 `.shell_var` 段；Keil scatter 文件需要添加 `SHELL_CMD` / `SHELL_VAR` 执行区域。具体格式见 `shell.h` 头部注释。

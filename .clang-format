@@ -14,11 +14,10 @@
 #                              基础语言配置
 # =============================================================================
 
-# 目标语言: C/C++
-# Cpp格式规则同样适用于C语言
-Language: Cpp
+# 不指定 Language，使配置适用于所有语言
+# (避免 clang-format 将 .h 文件识别为 ObjC 后报错)
 
-# C++标准版本
+# C++标准版本 (用于 clang-format 语法解析)
 # 可选: c++03, c++11, c++14, c++17, c++20, Latest, Auto
 Standard: c++11
 
@@ -663,4 +662,3 @@ BreakAfterAttributes: Leave
 
 # 保持以下特性为默认值，根据需要启用
 # BreakAdjacentStringLiterals: true
-

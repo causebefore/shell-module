@@ -8,7 +8,13 @@
 
 CC      = gcc
 CFLAGS  = -Wall -Wextra -Wno-unused-parameter -std=c99 -I. -Iunity/src -I..
-TARGET  = test_shell.exe
+
+# 跨平台可执行文件后缀
+ifeq ($(OS),Windows_NT)
+    TARGET = test_shell.exe
+else
+    TARGET = test_shell
+endif
 
 SRCS    = test_shell.c test_shell_mock.c unity/src/unity.c
 OBJS    = $(SRCS:.c=.o)

@@ -20,13 +20,25 @@
     #error "SHELL_RX_BUF_SIZE must be a power of 2"
 #endif
 
-/* 功能开关 - 只保留核心功能 */
-#define SHELL_USING_CMD_EXPORT  1 /* 使用宏导出命令 (需链接脚本支持) */
-#define SHELL_USING_VAR         1 /* 变量读写功能 */
-#define SHELL_USING_HISTORY     1 /* 历史记录 */
-#define SHELL_USING_COMPLETION  1 /* Tab补全 */
-#define SHELL_USING_PASSTHROUGH 1 /* 透传模式 */
-#define SHELL_USING_AUTH        1 /* 用户权限 */
+/* 功能开关 (可通过编译器 -D 选项覆盖) */
+#ifndef SHELL_USING_CMD_EXPORT
+    #define SHELL_USING_CMD_EXPORT 1 /* 使用宏导出命令 (需链接脚本支持) */
+#endif
+#ifndef SHELL_USING_VAR
+    #define SHELL_USING_VAR 1 /* 变量读写功能 */
+#endif
+#ifndef SHELL_USING_HISTORY
+    #define SHELL_USING_HISTORY 1 /* 历史记录 */
+#endif
+#ifndef SHELL_USING_COMPLETION
+    #define SHELL_USING_COMPLETION 1 /* Tab补全 */
+#endif
+#ifndef SHELL_USING_PASSTHROUGH
+    #define SHELL_USING_PASSTHROUGH 1 /* 透传模式 */
+#endif
+#ifndef SHELL_USING_AUTH
+    #define SHELL_USING_AUTH 1 /* 用户权限 */
+#endif
 
 /* 历史记录配置 */
 #if SHELL_USING_HISTORY

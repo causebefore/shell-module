@@ -71,6 +71,7 @@ jobs:
             -Wno-unused-parameter \
             -fsyntax-only \
             -DSHELL_USING_CMD_EXPORT=0 \
+            -DSHELL_USING_VAR=0 \
             -I. \
             shell.c
 

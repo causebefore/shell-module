@@ -46,6 +46,19 @@
 - `SHELL_USING_PASSTHROUGH` — 透传模式
 - `SHELL_USING_AUTH` — 用户权限认证
 
+## 构建与测试
+
+主机端单元测试（需 GCC + Unity）：
+
+```bash
+cd test
+make unity   # 首次：下载 Unity 框架
+make         # 编译并运行全部测试
+make clean   # 清理
+```
+
+测试通过直接 `#include "../shell.c"` 将实现内联编译，并通过宏覆盖 `SHELL_VAR_LIST` / `SHELL_VAR_COUNT` 来替代链接器 section 机制。
+
 ## 链接脚本
 
 GCC 需要在链接脚本中添加 `.shell_cmd` 和 `.shell_var` 段；Keil scatter 文件需要添加 `SHELL_CMD` / `SHELL_VAR` 执行区域。具体格式见 `shell.h` 头部注释。

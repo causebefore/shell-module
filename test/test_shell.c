@@ -56,11 +56,11 @@ static uint8_t      s_test_bool  = 1;
 static const char*  s_test_str   = "hello";
 
 const shell_var_t g_test_vars[] = {
-    {.name = "test_int",   .ptr = (void*) &s_test_int,   .type = SHELL_VAR_INT,    .readonly = 0},
-    {.name = "test_uint",  .ptr = (void*) &s_test_uint,  .type = SHELL_VAR_UINT,   .readonly = 0},
-    {.name = "test_float", .ptr = (void*) &s_test_float, .type = SHELL_VAR_FLOAT,  .readonly = 0},
-    {.name = "test_bool",  .ptr = (void*) &s_test_bool,  .type = SHELL_VAR_BOOL,   .readonly = 0},
-    {.name = "test_str",   .ptr = (void*) &s_test_str,   .type = SHELL_VAR_STRING, .readonly = 1},
+    {.name = "test_int",   .ptr = (void*) &s_test_int,   .type = SHELL_VAR_INT,    .is_readonly = 0},
+    {.name = "test_uint",  .ptr = (void*) &s_test_uint,  .type = SHELL_VAR_UINT,   .is_readonly = 0},
+    {.name = "test_float", .ptr = (void*) &s_test_float, .type = SHELL_VAR_FLOAT,  .is_readonly = 0},
+    {.name = "test_bool",  .ptr = (void*) &s_test_bool,  .type = SHELL_VAR_BOOL,   .is_readonly = 0},
+    {.name = "test_str",   .ptr = (void*) &s_test_str,   .type = SHELL_VAR_STRING, .is_readonly = 1},
 };
 uint16_t g_test_var_count = sizeof(g_test_vars) / sizeof(g_test_vars[0]);
 
@@ -523,6 +523,16 @@ void test_cmd_history_output(void)
     TEST_ASSERT_TRUE(mock_write_contains("ok"));
 }
 
+void test_history_login_masked(void)
+{
+    input_command("login admin secret123");
+    mock_write_reset();
+    input_command("history");
+    /* 密码应被脱敏为 "login ***" */
+    TEST_ASSERT_TRUE(mock_write_contains("login ***"));
+    TEST_ASSERT_FALSE(mock_write_contains("secret123"));
+}
+
 /* =================================================================
  * 测试组7: Tab 补全
  * ================================================================= */
@@ -729,7 +739,7 @@ void test_passthrough_enter(void)
 {
     s_pt_call_cnt = 0;
     shell_set_passthrough(&s_sh, test_pt_handler);
-    TEST_ASSERT_EQUAL_UINT8(1, s_sh.passthrough);
+    TEST_ASSERT_EQUAL_UINT8(1, s_sh.is_passthrough);
 
     shell_input(&s_sh, 'X');
     TEST_ASSERT_EQUAL_UINT8('X', s_pt_last_ch);
@@ -740,7 +750,7 @@ void test_passthrough_exit(void)
 {
     shell_set_passthrough(&s_sh, test_pt_handler);
     shell_input(&s_sh, KEY_CTRL_EXIT);
-    TEST_ASSERT_EQUAL_UINT8(0, s_sh.passthrough);
+    TEST_ASSERT_EQUAL_UINT8(0, s_sh.is_passthrough);
     TEST_ASSERT_NULL(s_sh.pt_handler);
 }
 
@@ -933,6 +943,7 @@ int main(void)
     RUN_TEST(test_history_duplicate_reject);
     RUN_TEST(test_history_empty);
     RUN_TEST(test_cmd_history_output);
+    RUN_TEST(test_history_login_masked);
 
     /* Tab补全 */
     RUN_TEST(test_completion_single_match);

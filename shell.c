@@ -88,11 +88,11 @@ void shell_printf(shell_t* sh, const char* fmt, ...)
     char    buf[SHELL_PRINTF_SIZE];
     va_list ap;
     va_start(ap, fmt);
-    int len = vsnprintf(buf, sizeof(buf), fmt, ap);
+    int32_t len = vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     if (len > 0)
     {
-        if (len > (int) sizeof(buf) - 1)
+        if (len > (int32_t) sizeof(buf) - 1)
         {
             len = sizeof(buf) - 1; /* 防止截断后len过大 */
         }
@@ -117,7 +117,8 @@ void shell_rx_push(shell_t* sh, uint8_t ch)
     if (next != sh->rx_tail) /* 缓冲区未满 */
     {
         sh->rx_buf[sh->rx_head] = ch;
-        sh->rx_head             = next;
+        __asm volatile("" ::: "memory"); /* 确保数据写入先于 head 更新 */
+        sh->rx_head = next;
     }
     /* 满则丢弃 */
 }
@@ -140,7 +141,8 @@ void shell_rx_push_buf(shell_t* sh, const uint8_t* data, uint16_t len)
             break; /* 缓冲区满 */
         }
         sh->rx_buf[sh->rx_head] = data[i];
-        sh->rx_head             = next;
+        __asm volatile("" ::: "memory"); /* 确保数据写入先于 head 更新 */
+        sh->rx_head = next;
     }
 }
 
@@ -158,13 +160,15 @@ int shell_rx_read(shell_t* sh, char* buf, uint16_t max_len)
     uint16_t cnt  = 0;
     uint16_t tail = sh->rx_tail;
     uint16_t head = sh->rx_head;
+    __asm volatile("" ::: "memory"); /* 确保先读取 head 再访问数据 */
 
     while (tail != head && cnt < max_len)
     {
         buf[cnt++] = sh->rx_buf[tail];
         tail       = (tail + 1) & (SHELL_RX_BUF_SIZE - 1);
     }
-    sh->rx_tail = tail; /* 更新读位置 */
+    __asm volatile("" ::: "memory"); /* 确保数据读取完成后再更新 tail */
+    sh->rx_tail = tail;              /* 更新读位置 */
     return cnt;
 }
 
@@ -195,7 +199,7 @@ static void refresh_line(shell_t* sh)
     {
         sh->write(sh->cmd_buf, sh->cmd_len);
     }
-    for (int i = sh->cmd_len - sh->cmd_pos; i > 0; i--)
+    for (int16_t i = sh->cmd_len - sh->cmd_pos; i > 0; i--)
     {
         shell_print(sh, ANSI_LEFT);
     }
@@ -204,6 +208,10 @@ static void refresh_line(shell_t* sh)
 /* ==================== 历史记录 ==================== */
 
 #if SHELL_USING_HISTORY
+
+    #define STR_LOGIN_PREFIX "login "
+    #define STR_LOGIN_MASKED "login ***"
+
 static void hist_add(shell_t* sh, const char* cmd)
 {
     if (!cmd || !cmd[0])
@@ -218,7 +226,16 @@ static void hist_add(shell_t* sh, const char* cmd)
             return;
         }
     }
-    strncpy(sh->hist[sh->hist_idx], cmd, SHELL_CMD_SIZE - 1);
+
+    /* 过滤 login 命令中的密码，防止密码泄露到历史记录 */
+    if (strncmp(cmd, STR_LOGIN_PREFIX, sizeof(STR_LOGIN_PREFIX) - 1) == 0)
+    {
+        strncpy(sh->hist[sh->hist_idx], STR_LOGIN_MASKED, SHELL_CMD_SIZE - 1);
+    }
+    else
+    {
+        strncpy(sh->hist[sh->hist_idx], cmd, SHELL_CMD_SIZE - 1);
+    }
     sh->hist[sh->hist_idx][SHELL_CMD_SIZE - 1] = '\0';
     sh->hist_idx                               = (sh->hist_idx + 1) % SHELL_HISTORY_MAX;
     if (sh->hist_cnt < SHELL_HISTORY_MAX)
@@ -227,7 +244,7 @@ static void hist_add(shell_t* sh, const char* cmd)
     }
 }
 
-static const char* hist_get(shell_t* sh, int dir)
+static const char* hist_get(shell_t* sh, int8_t dir)
 {
     if (!sh || sh->hist_cnt == 0)
     {
@@ -272,7 +289,7 @@ static const char* hist_get(shell_t* sh, int dir)
 static void complete_cmd(shell_t* sh)
 {
     const shell_cmd_t* match = NULL;
-    int                cnt   = 0;
+    uint16_t           cnt   = 0;
 
     for (uint16_t i = 0; i < sh->cmd_cnt; i++)
     {
@@ -306,16 +323,16 @@ static void complete_cmd(shell_t* sh)
 }
 
 /* 通用字符串列表补全 */
-static void complete_list(shell_t* sh, const char** list, const char* partial, int partial_len, int arg_start)
+static void complete_list(shell_t* sh, const char** list, const char* partial, int16_t partial_len, int16_t arg_start)
 {
     const char** match = NULL;
-    int          mcnt  = 0;
+    uint16_t     mcnt  = 0;
 
-    for (const char** p = list; *p; p++)
+    for (const char** item = list; *item; item++)
     {
-        if (strncmp(*p, partial, partial_len) == 0)
+        if (strncmp(*item, partial, partial_len) == 0)
         {
-            match = p;
+            match = item;
             mcnt++;
         }
     }
@@ -337,11 +354,11 @@ static void complete_list(shell_t* sh, const char** list, const char* partial, i
     {
         /* 多个匹配: 列出候选 */
         shell_print(sh, STR_CRLF);
-        for (const char** p = list; *p; p++)
+        for (const char** item = list; *item; item++)
         {
-            if (strncmp(*p, partial, partial_len) == 0)
+            if (strncmp(*item, partial, partial_len) == 0)
             {
-                shell_printf(sh, STR_COMP_ITEM, *p);
+                shell_printf(sh, STR_COMP_ITEM, *item);
             }
         }
         refresh_line(sh);
@@ -350,12 +367,12 @@ static void complete_list(shell_t* sh, const char** list, const char* partial, i
 
     #if SHELL_USING_VAR
 /* 变量名补全 (用于 var 命令) */
-static void complete_var(shell_t* sh, const char* partial, int partial_len, int arg_start)
+static void complete_var(shell_t* sh, const char* partial, int16_t partial_len, int16_t arg_start)
 {
     const shell_var_t* vars  = SHELL_VAR_LIST();
     uint16_t           cnt   = SHELL_VAR_COUNT();
     const shell_var_t* match = NULL;
-    int                mcnt  = 0;
+    uint16_t           mcnt  = 0;
 
     for (uint16_t i = 0; i < cnt; i++)
     {
@@ -400,7 +417,7 @@ static void do_completion(shell_t* sh)
 {
     /* 查找第一个空格位置 */
     char* space = NULL;
-    for (int i = 0; i < sh->cmd_len; i++)
+    for (uint16_t i = 0; i < sh->cmd_len; i++)
     {
         if (sh->cmd_buf[i] == ' ')
         {
@@ -417,16 +434,16 @@ static void do_completion(shell_t* sh)
     else
     {
         /* 有空格: 根据命令补全参数 */
-        int cmd_len = space - sh->cmd_buf;
+        int16_t cmd_len = (int16_t) (space - sh->cmd_buf);
 
         /* 跳过空格找参数起始 */
-        char* arg = space + 1;
+        const char* arg = space + 1;
         while (*arg == ' ' && arg < sh->cmd_buf + sh->cmd_len)
         {
             arg++;
         }
-        int arg_start   = arg - sh->cmd_buf;
-        int partial_len = sh->cmd_len - arg_start;
+        int16_t arg_start   = (int16_t) (arg - sh->cmd_buf);
+        int16_t partial_len = (int16_t) (sh->cmd_len - arg_start);
 
     #if SHELL_USING_VAR
         /* var 命令: 补全变量名 */
@@ -439,7 +456,7 @@ static void do_completion(shell_t* sh)
         /* 查找命令的补全列表 */
         for (uint16_t i = 0; i < sh->cmd_cnt; i++)
         {
-            if ((int) strlen(sh->cmds[i].name) == cmd_len && strncmp(sh->cmds[i].name, sh->cmd_buf, cmd_len) == 0)
+            if ((int16_t) strlen(sh->cmds[i].name) == cmd_len && strncmp(sh->cmds[i].name, sh->cmd_buf, cmd_len) == 0)
             {
                 if (sh->cmds[i].comp_list != NULL)
                 {
@@ -455,7 +472,7 @@ static void do_completion(shell_t* sh)
 /* ==================== 权限检查 ==================== */
 
 #if SHELL_USING_AUTH
-static int check_permission(shell_t* sh, const shell_cmd_t* cmd)
+static int32_t check_permission(shell_t* sh, const shell_cmd_t* cmd)
 {
     /* 权限为0表示无限制 */
     if (cmd->permission == 0)
@@ -476,28 +493,28 @@ static int check_permission(shell_t* sh, const shell_cmd_t* cmd)
 
 static void exec_cmd(shell_t* sh)
 {
-    char* argv[SHELL_ARG_MAX];
-    int   argc = 0;
-    char* p    = sh->cmd_buf;
+    char*   argv[SHELL_ARG_MAX];
+    int32_t argc = 0;
+    char*   ptr  = sh->cmd_buf;
 
-    while (*p && argc < SHELL_ARG_MAX)
+    while (*ptr && argc < SHELL_ARG_MAX)
     {
-        while (*p == ' ' || *p == '\t')
+        while (*ptr == ' ' || *ptr == '\t')
         {
-            p++;
+            ptr++;
         }
-        if (!*p)
+        if (!*ptr)
         {
             break;
         }
-        argv[argc++] = p;
-        while (*p && *p != ' ' && *p != '\t')
+        argv[argc++] = ptr;
+        while (*ptr && *ptr != ' ' && *ptr != '\t')
         {
-            p++;
+            ptr++;
         }
-        if (*p)
+        if (*ptr)
         {
-            *p++ = '\0';
+            *ptr++ = '\0';
         }
     }
 
@@ -519,7 +536,7 @@ static void exec_cmd(shell_t* sh)
             }
 #endif
             sh->is_active = 1; /* 命令执行中 */
-            int ret       = sh->cmds[i].func(argc, argv);
+            int32_t ret   = sh->cmds[i].func(argc, argv);
             sh->is_active = 0; /* 命令执行完毕 */
             if (ret != 0)
             {
@@ -544,10 +561,10 @@ static void handle_esc(shell_t* sh, char ch)
 #if SHELL_USING_HISTORY
             case 'A':
                 { /* 上 */
-                    const char* h = hist_get(sh, 1);
-                    if (h)
+                    const char* entry = hist_get(sh, 1);
+                    if (entry)
                     {
-                        strncpy(sh->cmd_buf, h, SHELL_CMD_SIZE - 1);
+                        strncpy(sh->cmd_buf, entry, SHELL_CMD_SIZE - 1);
                         sh->cmd_len = strlen(sh->cmd_buf);
                         sh->cmd_pos = sh->cmd_len;
                         refresh_line(sh);
@@ -556,10 +573,10 @@ static void handle_esc(shell_t* sh, char ch)
                 break;
             case 'B':
                 { /* 下 */
-                    const char* h = hist_get(sh, -1);
-                    if (h)
+                    const char* entry = hist_get(sh, -1);
+                    if (entry)
                     {
-                        strncpy(sh->cmd_buf, h, SHELL_CMD_SIZE - 1);
+                        strncpy(sh->cmd_buf, entry, SHELL_CMD_SIZE - 1);
                         sh->cmd_len = strlen(sh->cmd_buf);
                         sh->cmd_pos = sh->cmd_len;
                         refresh_line(sh);
@@ -605,7 +622,7 @@ void shell_input(shell_t* sh, char ch)
     }
 
 #if SHELL_USING_PASSTHROUGH
-    if (sh->passthrough)
+    if (sh->is_passthrough)
     {
         if (ch == KEY_CTRL_EXIT)
         {
@@ -722,14 +739,18 @@ void shell_task(shell_t* sh)
         show_prompt(sh);
     }
 
-    char buf[16];
-    int  len = 0;
+    char    buf[16];
+    int32_t len = 0;
 
     /* 优先使用用户提供的read回调 */
     if (sh->read)
     {
         len = sh->read(buf, sizeof(buf));
-        if (len > (int) sizeof(buf))
+        if (len < 0)
+        {
+            len = 0; /* 负值表示错误，忽略 */
+        }
+        else if (len > (int32_t) sizeof(buf))
         {
             len = sizeof(buf); /* 防止read返回异常值 */
         }
@@ -742,7 +763,7 @@ void shell_task(shell_t* sh)
     }
 #endif
 
-    for (int i = 0; i < len; i++)
+    for (int32_t i = 0; i < len; i++)
     {
         shell_input(sh, buf[i]);
     }
@@ -765,7 +786,7 @@ void shell_log(const char* buf, int len)
     }
 
 #if SHELL_USING_PASSTHROUGH
-    if (sh->passthrough)
+    if (sh->is_passthrough)
     {
         return;
     }
@@ -778,15 +799,31 @@ void shell_log(const char* buf, int len)
         return;
     }
 
-    /* 空闲状态: 清行 + 日志 + 恢复提示符和命令 */
-    char out_buf[256];
-    int  pos = 0;
+    /* 快照共享状态，避免与 shell_input 并发访问不一致 */
+    uint16_t snap_len = sh->cmd_len;
+    uint16_t snap_pos = sh->cmd_pos;
+    if (snap_len > SHELL_CMD_SIZE - 1)
+    {
+        snap_len = SHELL_CMD_SIZE - 1;
+    }
+    if (snap_pos > snap_len)
+    {
+        snap_pos = snap_len;
+    }
+
+    /*
+     * 缓冲区大小: \r(1) + 日志(200) + 提示符(32) + 命令(SHELL_CMD_SIZE)
+     *            + 清行ESC(3) + 光标恢复ESC(SHELL_CMD_SIZE*3)
+     */
+#define SHELL_LOG_BUF_SIZE (1 + 200 + 32 + SHELL_CMD_SIZE + 3 + SHELL_CMD_SIZE * 3)
+    char    out_buf[SHELL_LOG_BUF_SIZE];
+    int16_t pos = 0;
 
     /* 回到行首 */
     out_buf[pos++] = '\r';
 
     /* 日志内容 */
-    for (int i = 0; i < len && pos < (int) sizeof(out_buf) - 1; i++)
+    for (int32_t i = 0; i < len && pos < (int16_t) sizeof(out_buf) - 1; i++)
     {
         out_buf[pos++] = buf[i];
     }
@@ -796,34 +833,34 @@ void shell_log(const char* buf, int len)
     if (sh->cur_user && sh->is_checked)
     {
         const char* name = sh->cur_user->name;
-        while (*name && pos < (int) sizeof(out_buf) - 1)
+        while (*name && pos < (int16_t) sizeof(out_buf) - 1)
         {
             out_buf[pos++] = *name++;
         }
     }
 #endif
     const char* prompt = SHELL_PROMPT;
-    while (*prompt && pos < (int) sizeof(out_buf) - 1)
+    while (*prompt && pos < (int16_t) sizeof(out_buf) - 1)
     {
         out_buf[pos++] = *prompt++;
     }
 
-    /* 当前命令 */
-    for (int i = 0; i < sh->cmd_len && pos < (int) sizeof(out_buf) - 1; i++)
+    /* 当前命令 (使用快照长度) */
+    for (uint16_t i = 0; i < snap_len && pos < (int16_t) sizeof(out_buf) - 1; i++)
     {
         out_buf[pos++] = sh->cmd_buf[i];
     }
 
     /* 清除光标到行尾的残留字符 */
-    if (pos < (int) sizeof(out_buf) - 4)
+    if (pos < (int16_t) sizeof(out_buf) - 4)
     {
         out_buf[pos++] = '\033';
         out_buf[pos++] = '[';
         out_buf[pos++] = 'K';
     }
 
-    /* 光标定位 (移回当前位置) */
-    for (int i = sh->cmd_len - sh->cmd_pos; i > 0 && pos < (int) sizeof(out_buf) - 4; i--)
+    /* 光标定位 (移回当前位置, 使用快照) */
+    for (uint16_t i = snap_len - snap_pos; i > 0 && pos < (int16_t) sizeof(out_buf) - 4; i--)
     {
         out_buf[pos++] = '\033';
         out_buf[pos++] = '[';
@@ -843,8 +880,8 @@ void shell_set_passthrough(shell_t* sh, void (*handler)(uint8_t))
     {
         return;
     }
-    sh->pt_handler  = handler;
-    sh->passthrough = 1;
+    sh->pt_handler     = handler;
+    sh->is_passthrough = 1;
     shell_print(sh, STR_PASSTHROUGH_ON);
 }
 
@@ -854,8 +891,8 @@ void shell_exit_passthrough(shell_t* sh)
     {
         return;
     }
-    sh->passthrough = 0;
-    sh->pt_handler  = NULL;
+    sh->is_passthrough = 0;
+    sh->pt_handler     = NULL;
     shell_print(sh, STR_PASSTHROUGH_OFF);
     show_prompt(sh);
 }
@@ -923,7 +960,7 @@ int cmd_history(int argc, char* argv[])
 #if SHELL_USING_VAR
 
 /* 解析字符串为数值 (支持十进制和十六进制) */
-static int32_t parse_number(const char* str, int* is_float, float* fval)
+static int32_t parse_number(const char* str, uint8_t* is_float, float* fval)
 {
     *is_float = 0;
     *fval     = 0.0f;
@@ -934,16 +971,16 @@ static int32_t parse_number(const char* str, int* is_float, float* fval)
     }
 
     /* 检查是否有小数点 */
-    const char* p = str;
-    while (*p)
+    const char* scan = str;
+    while (*scan)
     {
-        if (*p == '.')
+        if (*scan == '.')
         {
             *is_float = 1;
             *fval     = (float) atof(str);
             return 0;
         }
-        p++;
+        scan++;
     }
 
     /* 整数: 支持 0x 前缀 */
@@ -998,7 +1035,7 @@ static void print_var(shell_t* sh, const shell_var_t* var)
         default:
             break;
     }
-    if (var->readonly)
+    if (var->is_readonly)
     {
         shell_print(sh, STR_READONLY);
     }
@@ -1035,13 +1072,13 @@ int cmd_var(int argc, char* argv[])
     }
 
     /* 写入 */
-    if (var->readonly)
+    if (var->is_readonly)
     {
         shell_print(sh, STR_VAR_READONLY);
         return -1;
     }
 
-    int     is_float;
+    uint8_t is_float;
     float   fval;
     int32_t ival = parse_number(argv[2], &is_float, &fval);
 
@@ -1099,14 +1136,18 @@ int cmd_vars(int argc, char* argv[])
 #if SHELL_USING_AUTH
 
     #if SHELL_USING_HASH_PWD
-/* 简单哈希函数 (DJB2) */
+/*
+ * 简单哈希函数 (DJB2)
+ * 注意: DJB2 为非密码学哈希, 32位空间存在碰撞风险。
+ * 此认证仅用于调试防误操作, 不适合安全关键场景。
+ */
 static uint32_t shell_hash(const char* str)
 {
     uint32_t hash = 5381;
-    int      c;
-    while ((c = *str++))
+    int      ch;
+    while ((ch = *str++))
     {
-        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+        hash = ((hash << 5) + hash) + ch; /* hash * 33 + ch */
     }
     return hash;
 }
@@ -1184,7 +1225,7 @@ int cmd_login(int argc, char* argv[])
     }
 
     const char* password = (argc > 2) ? argv[2] : "";
-    int         ret      = shell_login(sh, argv[1], password);
+    int32_t     ret      = shell_login(sh, argv[1], password);
 
     if (ret == 0)
     {

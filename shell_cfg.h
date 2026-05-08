@@ -3,8 +3,8 @@
  * @brief   Shell配置 - 精简CLI版本
  */
 
-#ifndef SHELL_CFG_H
-#define SHELL_CFG_H
+#ifndef SHELL_CFG_H_
+#define SHELL_CFG_H_
 
 /* 基础配置 */
 #define SHELL_CMD_SIZE    128  /* 命令缓冲区大小 */

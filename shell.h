@@ -7,8 +7,8 @@
  * @copyright Copyright (c) 2026 liu
  * For study and research only
  */
-#ifndef SHELL_H
-#define SHELL_H
+#ifndef SHELL_H_
+#define SHELL_H_
 
 #include "shell_cfg.h"
 

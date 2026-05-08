@@ -25,6 +25,9 @@ test/unity/
 .vscode/
 *.code-workspace
 
+# Claude Code
+.claude/
+
 # Keil MDK
 *.uvoptx
 *.uvguix.*

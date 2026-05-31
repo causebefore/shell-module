@@ -27,7 +27,8 @@ shell/
 ├── shell_cfg.h      # 配置宏
 ├── shell_port.c     # 硬件IO层（仅40行）
 ├── shell_user.c     # 用户命令/变量/用户表（新建）
-└── shell_log.c      # ISR日志队列（新建）
+├── shell_log.c      # ISR日志队列（新建）
+└── shell_ansi.h     # ANSI颜色定义（新建）
 ```
 
 ### 2.2 职责划分
@@ -37,6 +38,7 @@ shell/
 - **shell_port.c**：硬件IO层，仅write回调和中断处理
 - **shell_user.c**：用户命令、变量、用户表
 - **shell_log.c**：ISR日志队列实现
+- **shell_ansi.h**：ANSI颜色和光标控制定义
 
 ### 2.3 初始化流程
 ```
@@ -60,7 +62,7 @@ shell_task() 读取缓冲区数据并处理
 typedef struct {
     void (*write)(const char* data, uint16_t len);  // 必须实现
     shell_password_verify_fn_t password_verify;      // 可选
-    // 其他可选配置...
+    // 可扩展：未来可添加其他配置项
 } shell_config_t;
 
 // 新的初始化函数
@@ -194,7 +196,7 @@ typedef int (*shell_password_verify_fn_t)(const shell_user_t* user, const char* 
 typedef struct {
     void (*write)(const char* data, uint16_t len);
     shell_password_verify_fn_t password_verify;  // 可选
-    // 其他配置...
+    // 可扩展：未来可添加其他配置项
 } shell_config_t;
 ```
 

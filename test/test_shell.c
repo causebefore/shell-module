@@ -56,6 +56,7 @@ extern uint16_t    g_test_cmd_count;
 #include <string.h>
 
 #include "../shell.c"
+#include "../shell_log.c"
 
 /* ==================== 测试用变量 ==================== */
 
@@ -858,6 +859,98 @@ void test_log_max_length(void)
 }
 
 /* =================================================================
+ * 测试组14: ISR日志队列
+ * ================================================================= */
+
+#if SHELL_USING_LOG_QUEUE
+
+void test_log_isr_write_and_drain(void)
+{
+    mock_write_reset();
+    int written = shell_log_isr(&s_sh, (const uint8_t*) "ISR!", 4);
+    TEST_ASSERT_EQUAL_INT(4, written);
+
+    /* 数据在队列中，drain后输出 */
+    shell_log_drain(&s_sh);
+    TEST_ASSERT_TRUE(mock_write_contains("ISR!"));
+}
+
+void test_log_text_isr(void)
+{
+    mock_write_reset();
+    int written = shell_log_text_isr(&s_sh, "HelloISR");
+    TEST_ASSERT_EQUAL_INT(8, written);
+
+    shell_log_drain(&s_sh);
+    TEST_ASSERT_TRUE(mock_write_contains("HelloISR"));
+}
+
+void test_log_isr_null_params(void)
+{
+    int r = shell_log_isr(NULL, (const uint8_t*) "x", 1);
+    TEST_ASSERT_EQUAL_INT(0, r);
+    r = shell_log_isr(&s_sh, NULL, 1);
+    TEST_ASSERT_EQUAL_INT(0, r);
+    r = shell_log_isr(&s_sh, (const uint8_t*) "x", 0);
+    TEST_ASSERT_EQUAL_INT(0, r);
+}
+
+void test_log_text_isr_null_params(void)
+{
+    int r = shell_log_text_isr(NULL, "test");
+    TEST_ASSERT_EQUAL_INT(0, r);
+    r = shell_log_text_isr(&s_sh, NULL);
+    TEST_ASSERT_EQUAL_INT(0, r);
+}
+
+void test_log_drain_empty_queue(void)
+{
+    mock_write_reset();
+    shell_log_drain(&s_sh);
+    TEST_ASSERT_EQUAL_UINT16(0, mock_write_len());
+}
+
+void test_log_drain_null_params(void)
+{
+    shell_log_drain(NULL);
+}
+
+void test_log_isr_overflow(void)
+{
+    /* 填满队列 */
+    for (uint16_t i = 0; i < SHELL_LOG_QUEUE_SIZE + 10; i++)
+    {
+        shell_log_isr(&s_sh, (const uint8_t*) "A", 1);
+    }
+    /* 应有丢弃 */
+    TEST_ASSERT_TRUE(s_sh.log_dropped_total > 0);
+
+    /* drain输出 */
+    mock_write_reset();
+    shell_log_drain(&s_sh);
+    TEST_ASSERT_TRUE(mock_write_len() > 0);
+    /* 检查丢弃报告 */
+    TEST_ASSERT_TRUE(mock_write_contains("dropped"));
+}
+
+void test_log_isr_wraps_around(void)
+{
+    /* 先写一些数据再部分drain，制造环绕条件 */
+    mock_write_reset();
+    shell_log_isr(&s_sh, (const uint8_t*) "ABC", 3);
+    shell_log_drain(&s_sh);
+    TEST_ASSERT_TRUE(mock_write_contains("ABC"));
+
+    /* 再写入数据，tail在中间，head可能环绕 */
+    mock_write_reset();
+    shell_log_text_isr(&s_sh, "XYZ");
+    shell_log_drain(&s_sh);
+    TEST_ASSERT_TRUE(mock_write_contains("XYZ"));
+}
+
+#endif /* SHELL_USING_LOG_QUEUE */
+
+/* =================================================================
  * 测试组13: 内置命令
  * ================================================================= */
 
@@ -1018,6 +1111,18 @@ int main(void)
     RUN_TEST(test_cmd_help_no_global);
     RUN_TEST(test_cmd_login_no_args);
     RUN_TEST(test_cmd_logout_via_command);
+
+    /* ISR日志队列 */
+#if SHELL_USING_LOG_QUEUE
+    RUN_TEST(test_log_isr_write_and_drain);
+    RUN_TEST(test_log_text_isr);
+    RUN_TEST(test_log_isr_null_params);
+    RUN_TEST(test_log_text_isr_null_params);
+    RUN_TEST(test_log_drain_empty_queue);
+    RUN_TEST(test_log_drain_null_params);
+    RUN_TEST(test_log_isr_overflow);
+    RUN_TEST(test_log_isr_wraps_around);
+#endif
 
     return UNITY_END();
 }

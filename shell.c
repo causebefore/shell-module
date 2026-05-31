@@ -775,6 +775,10 @@ void shell_task(shell_t* sh)
     {
         shell_input(sh, buf[i]);
     }
+
+#if SHELL_USING_LOG_QUEUE
+    shell_log_drain(sh);
+#endif
 }
 
 /* ==================== 日志输出(尾行模式) ==================== */

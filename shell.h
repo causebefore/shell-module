@@ -66,7 +66,20 @@ typedef struct
     #define SHELL_PERM_USER  0x01 /* 普通用户 */
     #define SHELL_PERM_ADMIN 0x02 /* 管理员 */
     #define SHELL_PERM_ROOT  0xFF /* 超级用户 */
+
+/* 密码验证回调类型 */
+typedef int (*shell_password_verify_fn_t)(const shell_user_t* user, const char* input_password);
 #endif
+
+/* Shell配置结构体 */
+typedef struct
+{
+    void (*write)(const char* data, uint16_t len);  /* 必须实现 */
+#if SHELL_USING_AUTH
+    shell_password_verify_fn_t password_verify;      /* 可选，自定义密码验证 */
+#endif
+    /* 可扩展：未来可添加其他配置项 */
+} shell_config_t;
 
 /* ==================== 命令导出宏 ==================== */
 /*
@@ -294,8 +307,7 @@ typedef struct
 extern shell_t* g_shell;
 
 /* API */
-void shell_init(shell_t* sh, const shell_cmd_t* cmds, uint16_t cnt, void (*write)(const char*, uint16_t),
-                int (*read)(char*, uint16_t));
+void shell_init(shell_t* sh, const shell_config_t* cfg);
 void shell_task(shell_t* sh);
 void shell_input(shell_t* sh, char ch);
 void shell_print(shell_t* sh, const char* str);
@@ -337,7 +349,7 @@ int  cmd_whoami(int argc, char* argv[]);
 
 /* 使用导出命令初始化 (配合 SHELL_EXPORT_CMD 宏，需链接脚本支持) */
 #if SHELL_USING_CMD_EXPORT
-    #define shell_init_export(sh, write, read) shell_init(sh, SHELL_CMD_LIST(), SHELL_CMD_COUNT(), write, read)
+    #define shell_init_export(sh, write) shell_init(sh, &(shell_config_t){.write = write})
 #endif
 
 #endif

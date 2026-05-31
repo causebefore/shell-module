@@ -324,6 +324,10 @@ void shell_print(shell_t* sh, const char* str);
 void shell_printf(shell_t* sh, const char* fmt, ...);
 void shell_log(const char* buf, int len);
 
+/* ANSI增强API */
+void shell_print_color(shell_t* sh, const char* color, const char* str);
+void shell_printf_color(shell_t* sh, const char* color, const char* fmt, ...);
+
 /* 环形缓冲区API (中断安全) */
 #if SHELL_RX_BUF_SIZE > 0
 void shell_rx_push(shell_t* sh, uint8_t ch);                            /* 中断中调用: 写入单字节 */
@@ -359,6 +363,7 @@ int cmd_vars(int argc, char* argv[]);
 void shell_set_users(shell_t* sh, const shell_user_t* users, uint8_t cnt);
 int  shell_login(shell_t* sh, const char* name, const char* password);
 void shell_logout(shell_t* sh);
+void shell_set_password_verify(shell_t* sh, shell_password_verify_fn_t verify);
 int  cmd_login(int argc, char* argv[]);
 int  cmd_logout(int argc, char* argv[]);
 int  cmd_whoami(int argc, char* argv[]);

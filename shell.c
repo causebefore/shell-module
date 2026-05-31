@@ -8,6 +8,7 @@
  * For study and research only
  */
 #include "shell.h"
+#include "shell_ansi.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -18,13 +19,6 @@
 #define SHELL_VERSION "1.0.0"
 #define SHELL_AUTHOR  "Liu"
 #define SHELL_YEAR    "2026"
-
-
-/* ANSI控制码 */
-#define ANSI_CLEAR   "\033[2J\033[H"
-#define ANSI_CLEARLN "\033[2K\r"
-#define ANSI_LEFT    "\033[1D"
-#define ANSI_RIGHT   "\033[1C"
 
 
 /* 输出字符串定义 (方便多语言/自定义) */
@@ -97,6 +91,52 @@ void shell_printf(shell_t* sh, const char* fmt, ...)
             len = sizeof(buf) - 1; /* 防止截断后len过大 */
         }
         sh->write(buf, len);
+    }
+}
+
+/* ==================== ANSI增强API ==================== */
+
+void shell_print_color(shell_t* sh, const char* color, const char* str)
+{
+    if (!sh || !sh->write || !str)
+    {
+        return;
+    }
+
+    if (color)
+    {
+        sh->write(color, strlen(color));
+    }
+    sh->write(str, strlen(str));
+    sh->write(ANSI_COLOR_RESET, strlen(ANSI_COLOR_RESET));
+}
+
+void shell_printf_color(shell_t* sh, const char* color, const char* fmt, ...)
+{
+    if (!sh || !sh->write || !fmt)
+    {
+        return;
+    }
+
+    char    buf[SHELL_PRINTF_SIZE];
+    va_list ap;
+    va_start(ap, fmt);
+    int32_t len = vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+
+    if (len > 0)
+    {
+        if (len > (int32_t) sizeof(buf) - 1)
+        {
+            len = sizeof(buf) - 1;
+        }
+
+        if (color)
+        {
+            sh->write(color, strlen(color));
+        }
+        sh->write(buf, len);
+        sh->write(ANSI_COLOR_RESET, strlen(ANSI_COLOR_RESET));
     }
 }
 
@@ -1165,6 +1205,37 @@ static uint32_t shell_hash(const char* str)
 }
     #endif
 
+static int verify_password(const shell_user_t* user, const char* input_password)
+{
+    if (!user || !input_password)
+    {
+        return -1;
+    }
+
+    /* 如果设置了自定义验证回调，使用回调 */
+    if (g_shell && g_shell->password_verify)
+    {
+        return g_shell->password_verify(user, input_password);
+    }
+
+    /* 默认验证逻辑 */
+    #if SHELL_USING_HASH_PWD
+    uint32_t stored_hash = (uint32_t)(uintptr_t)user->password;
+    if (stored_hash == 0)
+    {
+        return 0; /* 无密码用户 */
+    }
+    uint32_t hash = shell_hash(input_password);
+    return (hash == stored_hash) ? 0 : -1;
+    #else
+    if (user->password[0] == '\0')
+    {
+        return 0; /* 无密码用户 */
+    }
+    return (strcmp(user->password, input_password) == 0) ? 0 : -1;
+    #endif
+}
+
 void shell_set_users(shell_t* sh, const shell_user_t* users, uint8_t cnt)
 {
     if (!sh)
@@ -1193,14 +1264,8 @@ int shell_login(shell_t* sh, const char* name, const char* password)
         }
         if (strcmp(sh->users[i].name, name) == 0)
         {
-    #if SHELL_USING_HASH_PWD
-            /* 哈希密码验证 */
-            uint32_t stored_hash = (uint32_t) (uintptr_t) sh->users[i].password;
-            if (stored_hash == 0 || (password && shell_hash(password) == stored_hash))
-    #else
-            /* 明文密码验证 */
-            if (sh->users[i].password[0] == '\0' || (password && strcmp(sh->users[i].password, password) == 0))
-    #endif
+            /* 使用 verify_password 进行密码验证 */
+            if (password && verify_password(&sh->users[i], password) == 0)
             {
                 sh->cur_user   = &sh->users[i];
                 sh->is_checked = 1;
@@ -1220,6 +1285,14 @@ void shell_logout(shell_t* sh)
     }
     sh->cur_user   = NULL;
     sh->is_checked = 0;
+}
+
+void shell_set_password_verify(shell_t* sh, shell_password_verify_fn_t verify)
+{
+    if (sh)
+    {
+        sh->password_verify = verify;
+    }
 }
 
 int cmd_login(int argc, char* argv[])

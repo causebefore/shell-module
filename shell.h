@@ -278,6 +278,15 @@ typedef struct
     volatile uint16_t rx_tail; /* 读取位置 (主循环读) */
 #endif
 
+#if SHELL_USING_LOG_QUEUE
+    /* ISR日志队列 */
+    uint8_t log_buf[SHELL_LOG_QUEUE_SIZE];
+    volatile uint16_t log_head;           // ISR写
+    volatile uint16_t log_tail;           // 主循环读
+    volatile uint16_t log_dropped_total;  // 丢弃计数
+    uint16_t log_dropped_reported;        // 已报告的丢弃计数
+#endif
+
     const shell_cmd_t* cmds;
     uint16_t           cmd_cnt;
 
@@ -320,6 +329,13 @@ void shell_log(const char* buf, int len);
 void shell_rx_push(shell_t* sh, uint8_t ch);                            /* 中断中调用: 写入单字节 */
 void shell_rx_push_buf(shell_t* sh, const uint8_t* data, uint16_t len); /* 中断中调用: 写入多字节 */
 int  shell_rx_read(shell_t* sh, char* buf, uint16_t max_len);           /* 主循环调用: 读取数据 */
+#endif
+
+#if SHELL_USING_LOG_QUEUE
+/* ISR日志队列API */
+int shell_log_isr(shell_t* sh, const uint8_t* data, uint16_t len);
+int shell_log_text_isr(shell_t* sh, const char* s);
+void shell_log_drain(shell_t* sh);
 #endif
 
 #if SHELL_USING_PASSTHROUGH

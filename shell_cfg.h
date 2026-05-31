@@ -62,4 +62,13 @@
 #define KEY_CTRL_C    0x03
 #define KEY_CTRL_EXIT 0x1D /* Ctrl+] 退出透传 */
 
+/* ==================== ISR日志队列配置 ==================== */
+#ifndef SHELL_USING_LOG_QUEUE
+    #define SHELL_USING_LOG_QUEUE 1  /* 启用ISR日志队列 */
+#endif
+
+#if SHELL_USING_LOG_QUEUE
+    #define SHELL_LOG_QUEUE_SIZE 256  /* 日志队列大小，必须是2的幂 */
+#endif
+
 #endif

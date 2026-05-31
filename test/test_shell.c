@@ -39,6 +39,16 @@ extern uint16_t          g_test_var_count;
 #define SHELL_VAR_LIST()  (g_test_vars)
 #define SHELL_VAR_COUNT() (g_test_var_count)
 
+/* 前向声明测试命令表 (用于覆盖命令段宏) */
+extern shell_cmd_t s_test_cmds[];
+extern uint16_t    g_test_cmd_count;
+
+/* 覆盖命令段宏 */
+#undef SHELL_CMD_LIST
+#undef SHELL_CMD_COUNT
+#define SHELL_CMD_LIST()  (s_test_cmds)
+#define SHELL_CMD_COUNT() (g_test_cmd_count)
+
 /* 直接包含实现 (shell.c 顶部 #include "shell.h" 被 include guard 跳过) */
 #include "test_shell_mock.h"
 #include "unity.h"
@@ -68,7 +78,7 @@ uint16_t g_test_var_count = sizeof(g_test_vars) / sizeof(g_test_vars[0]);
 
 static const char* s_mode_list[] = {"uart", "spi", "i2c", NULL};
 
-static shell_cmd_t s_test_cmds[] = {
+shell_cmd_t s_test_cmds[] = {
     {.name = "ok",      .desc = "always ok",      .func = test_cmd_ok,     .permission = 0,                .comp_list = NULL       },
     {.name = "fail",    .desc = "return error",   .func = test_cmd_fail,   .permission = 0,                .comp_list = NULL       },
     {.name = "record",  .desc = "record args",    .func = test_cmd_record, .permission = 0,                .comp_list = NULL       },
@@ -85,6 +95,7 @@ static shell_cmd_t s_test_cmds[] = {
 };
 
 #define TEST_CMD_COUNT (sizeof(s_test_cmds) / sizeof(s_test_cmds[0]))
+uint16_t g_test_cmd_count = TEST_CMD_COUNT;
 
 /* ==================== 测试用用户表 ==================== */
 
@@ -102,7 +113,9 @@ static shell_t s_sh;
 static void setup_shell(void)
 {
     mock_write_reset();
-    shell_init(&s_sh, s_test_cmds, TEST_CMD_COUNT, mock_write, mock_read);
+    shell_config_t cfg = {.write = mock_write};
+    shell_init(&s_sh, &cfg);
+    s_sh.read = mock_read;
     shell_set_users(&s_sh, s_test_users, TEST_USER_COUNT);
     s_sh.is_inited = 1; /* 跳过 banner */
     s_test_int     = 42;
@@ -141,30 +154,33 @@ void tearDown(void)
 
 void test_init_null_pointer(void)
 {
-    shell_init(NULL, s_test_cmds, TEST_CMD_COUNT, mock_write, mock_read);
+    shell_config_t cfg = {.write = mock_write};
+    shell_init(NULL, &cfg);
+    shell_init(&s_sh, NULL);
 }
 
 void test_init_sets_callbacks(void)
 {
     shell_t sh;
-    shell_init(&sh, s_test_cmds, TEST_CMD_COUNT, mock_write, mock_read);
+    shell_config_t cfg = {.write = mock_write};
+    shell_init(&sh, &cfg);
     TEST_ASSERT_EQUAL_PTR(mock_write, sh.write);
-    TEST_ASSERT_EQUAL_PTR(mock_read, sh.read);
     TEST_ASSERT_EQUAL_UINT16(TEST_CMD_COUNT, sh.cmd_cnt);
     TEST_ASSERT_EQUAL_UINT8(0, sh.cmd_len);
-    TEST_ASSERT_EQUAL_UINT8(0, sh.is_inited);
+    TEST_ASSERT_EQUAL_UINT8(1, sh.is_inited);
 }
 
 void test_init_clears_struct(void)
 {
     shell_t sh;
     memset(&sh, 0xFF, sizeof(sh));
-    shell_init(&sh, s_test_cmds, TEST_CMD_COUNT, mock_write, mock_read);
+    shell_config_t cfg = {.write = mock_write};
+    shell_init(&sh, &cfg);
     TEST_ASSERT_EQUAL_UINT16(0, sh.cmd_len);
     TEST_ASSERT_EQUAL_UINT16(0, sh.cmd_pos);
     TEST_ASSERT_EQUAL_UINT8(0, sh.esc_state);
     TEST_ASSERT_EQUAL_UINT8(0, sh.is_active);
-    TEST_ASSERT_EQUAL_UINT8(0, sh.is_inited);
+    TEST_ASSERT_EQUAL_UINT8(1, sh.is_inited);
 }
 
 /* =================================================================
@@ -191,7 +207,7 @@ void test_print_null_str(void)
 void test_print_null_write(void)
 {
     shell_t sh;
-    shell_init(&sh, s_test_cmds, TEST_CMD_COUNT, NULL, NULL);
+    memset(&sh, 0, sizeof(sh));
     shell_print(&sh, "hello");
 }
 
@@ -777,7 +793,10 @@ void test_task_null_shell(void)
 void test_task_first_call_shows_banner(void)
 {
     shell_t sh;
-    shell_init(&sh, s_test_cmds, TEST_CMD_COUNT, mock_write, mock_read);
+    shell_config_t cfg = {.write = mock_write};
+    shell_init(&sh, &cfg);
+    sh.read      = mock_read;
+    sh.is_inited = 0; /* 强制触发 banner 显示 */
     mock_write_reset();
     mock_read_set("", 0);
     shell_task(&sh);

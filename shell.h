@@ -293,10 +293,11 @@ typedef struct
 #endif
 
 #if SHELL_USING_AUTH
-    const shell_user_t* users;      /* 用户列表 */
-    uint8_t             user_cnt;   /* 用户数量 */
-    const shell_user_t* cur_user;   /* 当前用户 */
-    uint8_t             is_checked; /* 密码已校验 */
+    const shell_user_t* users;            /* 用户列表 */
+    uint8_t             user_cnt;         /* 用户数量 */
+    const shell_user_t* cur_user;         /* 当前用户 */
+    uint8_t             is_checked;       /* 密码已校验 */
+    shell_password_verify_fn_t password_verify; /* 自定义密码验证回调 (可选) */
 #endif
 
     void (*write)(const char* data, uint16_t len);

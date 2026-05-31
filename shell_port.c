@@ -203,8 +203,9 @@ void my_shell_init(void)
     lwrb_init(&s_tx_rb, s_tx_buf, sizeof(s_tx_buf));
     lwrb_init(&s_rx_rb, s_rx_buf, sizeof(s_rx_buf));
 
-    /* 初始化shell (使用宏导出命令) */
-    shell_init_export(&g_shell_usart3, shell_write_impl, shell_read_impl);
+    /* 初始化shell (使用宏导出命令, 命令表自动从链接段加载) */
+    shell_init_export(&g_shell_usart3, shell_write_impl);
+    g_shell_usart3.read = shell_read_impl;
 
 #if SHELL_USING_AUTH
     /* 设置用户列表 */

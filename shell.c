@@ -709,19 +709,27 @@ void shell_input(shell_t* sh, char ch)
 
 /* ==================== 初始化与任务 ==================== */
 
-void shell_init(shell_t* sh, const shell_cmd_t* cmds, uint16_t cnt, void (*write)(const char*, uint16_t),
-                int (*read)(char*, uint16_t))
+void shell_init(shell_t* sh, const shell_config_t* cfg)
 {
-    if (!sh)
+    if (!sh || !cfg || !cfg->write)
     {
         return;
     }
+
     memset(sh, 0, sizeof(shell_t));
-    sh->cmds    = cmds;
-    sh->cmd_cnt = cnt;
-    sh->write   = write;
-    sh->read    = read;
-    g_shell     = sh;
+    sh->write = cfg->write;
+
+#if SHELL_USING_CMD_EXPORT
+    sh->cmds    = SHELL_CMD_LIST();
+    sh->cmd_cnt = SHELL_CMD_COUNT();
+#endif
+
+#if SHELL_USING_AUTH
+    sh->password_verify = cfg->password_verify;
+#endif
+
+    sh->is_inited = 1;
+    g_shell       = sh;
 }
 
 void shell_task(shell_t* sh)

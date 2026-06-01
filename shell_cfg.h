@@ -45,11 +45,6 @@
     #define SHELL_HISTORY_MAX 8
 #endif
 
-/* 用户权限配置 */
-#if SHELL_USING_AUTH
-    #define SHELL_USER_MAX       4  /* 最大用户数量 */
-#endif
-
 /* 按键定义 */
 #define KEY_ESC       0x1B
 #define KEY_TAB       0x09
@@ -67,6 +62,9 @@
 
 #if SHELL_USING_LOG_QUEUE
     #define SHELL_LOG_QUEUE_SIZE 256  /* 日志队列大小，必须是2的幂 */
+    #ifndef SHELL_LOG_DRAIN_CHUNK_SIZE
+        #define SHELL_LOG_DRAIN_CHUNK_SIZE 64 /* 单次复制到临时缓冲区的最大字节数 */
+    #endif
 #endif
 
 #endif

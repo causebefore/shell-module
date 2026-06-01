@@ -137,6 +137,16 @@ void test_port_init_returns_start_error(void)
     TEST_ASSERT_EQUAL_INT(-7, shell_port_init(&backend));
 }
 
+void test_port_init_rolls_back_shell_on_start_error(void)
+{
+    shell_port_backend_t backend = make_backend();
+    s_fake.start_result = -7;
+
+    TEST_ASSERT_EQUAL_INT(-7, shell_port_init(&backend));
+    TEST_ASSERT_NULL(g_shell);
+    TEST_ASSERT_NULL(shell_port_get_shell()->write);
+}
+
 void test_port_forwards_critical_hooks_to_log_queue(void)
 {
     shell_port_backend_t backend = make_backend();
@@ -181,6 +191,7 @@ int main(void)
     RUN_TEST(test_port_init_rejects_missing_backend_or_write);
     RUN_TEST(test_port_init_starts_backend_and_routes_write);
     RUN_TEST(test_port_init_returns_start_error);
+    RUN_TEST(test_port_init_rolls_back_shell_on_start_error);
     RUN_TEST(test_port_forwards_critical_hooks_to_log_queue);
     RUN_TEST(test_port_rx_from_isr_feeds_shell_rx_buffer);
     RUN_TEST(test_port_rx_buf_from_isr_feeds_shell_rx_buffer);

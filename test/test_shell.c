@@ -650,6 +650,33 @@ void test_var_write_bool(void)
     TEST_ASSERT_EQUAL_UINT8(0, s_test_bool);
 }
 
+void test_var_rejects_invalid_int_value(void)
+{
+    mock_write_reset();
+    input_command("var test_int hello");
+
+    TEST_ASSERT_EQUAL_INT(42, s_test_int);
+    TEST_ASSERT_TRUE(mock_write_contains("Invalid"));
+}
+
+void test_var_rejects_trailing_integer_garbage(void)
+{
+    mock_write_reset();
+    input_command("var test_int 123abc");
+
+    TEST_ASSERT_EQUAL_INT(42, s_test_int);
+    TEST_ASSERT_TRUE(mock_write_contains("Invalid"));
+}
+
+void test_var_rejects_trailing_float_garbage(void)
+{
+    mock_write_reset();
+    input_command("var test_float 1.2.3");
+
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 3.14f, s_test_float);
+    TEST_ASSERT_TRUE(mock_write_contains("Invalid"));
+}
+
 void test_var_readonly(void)
 {
     mock_write_reset();
@@ -1089,6 +1116,9 @@ int main(void)
     RUN_TEST(test_var_write_hex);
     RUN_TEST(test_var_write_float);
     RUN_TEST(test_var_write_bool);
+    RUN_TEST(test_var_rejects_invalid_int_value);
+    RUN_TEST(test_var_rejects_trailing_integer_garbage);
+    RUN_TEST(test_var_rejects_trailing_float_garbage);
     RUN_TEST(test_var_readonly);
     RUN_TEST(test_var_not_found);
     RUN_TEST(test_vars_list_all);

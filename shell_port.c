@@ -6,9 +6,17 @@
 #include "shell_port.h"
 
 #include <stddef.h>
+#include <string.h>
 
 static shell_t s_shell;
 static const shell_port_backend_t* s_backend;
+
+static void shell_port_reset(void)
+{
+    s_backend = NULL;
+    memset(&s_shell, 0, sizeof(s_shell));
+    g_shell = NULL;
+}
 
 static void shell_port_write_trampoline(const char* data, uint16_t len)
 {
@@ -59,7 +67,7 @@ int shell_port_init(const shell_port_backend_t* backend)
         int ret = backend->start(backend->ctx);
         if (ret != 0)
         {
-            s_backend = NULL;
+            shell_port_reset();
             return ret;
         }
     }

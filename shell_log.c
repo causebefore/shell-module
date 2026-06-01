@@ -148,30 +148,24 @@ void shell_log_drain(shell_t* sh)
         }
     }
 
-    /*
-     * 分两段输出 (不跨越环绕点):
-     *   段1: tail -> min(head, QUEUE_SIZE)
-     *   段2: 如果 head < tail, 0 -> head
-     */
-    uint16_t chunk1 = (head >= tail) ? (head - tail) : (SHELL_LOG_QUEUE_SIZE - tail);
-    if (chunk1 > 0)
+    while (tail != head)
     {
-        sh->write((const char*) &sh->log_buf[tail], chunk1);
-    }
-
-    if (head < tail)
-    {
-        /* 环绕: 输出第二段 0 -> head */
-        if (head > 0)
+        uint8_t  temp[SHELL_LOG_DRAIN_CHUNK_SIZE];
+        uint16_t chunk = (head > tail) ? (head - tail) : (SHELL_LOG_QUEUE_SIZE - tail);
+        if (chunk > SHELL_LOG_DRAIN_CHUNK_SIZE)
         {
-            sh->write((const char*) &sh->log_buf[0], head);
+            chunk = SHELL_LOG_DRAIN_CHUNK_SIZE;
         }
-    }
 
-    __asm volatile("" ::: "memory"); /* 确保数据读取完成后再更新 tail */
-    lock_state = shell_log_lock(sh);
-    sh->log_tail = head;
-    shell_log_unlock(sh, lock_state);
+        lock_state = shell_log_lock(sh);
+        memcpy(temp, (const void*) &sh->log_buf[tail], chunk);
+        tail = (tail + chunk) & (SHELL_LOG_QUEUE_SIZE - 1);
+        __asm volatile("" ::: "memory"); /* 确保复制完成后再释放队列空间 */
+        sh->log_tail = tail;
+        shell_log_unlock(sh, lock_state);
+
+        sh->write((const char*) temp, chunk);
+    }
 }
 
 #endif /* SHELL_USING_LOG_QUEUE */

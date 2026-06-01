@@ -61,6 +61,8 @@ static shell_t s_sh;
 static uint16_t s_lock_count;
 static uint16_t s_unlock_count;
 static uint32_t s_last_unlock_state;
+static uint16_t s_injected_write_len;
+static uint8_t  s_inject_on_write;
 
 static uint32_t test_critical_enter(void)
 {
@@ -74,6 +76,20 @@ static void test_critical_exit(uint32_t state)
     s_last_unlock_state = state;
 }
 
+static void slow_write_inject_isr(const char* data, uint16_t len)
+{
+    (void) data;
+    (void) len;
+
+    if (s_inject_on_write)
+    {
+        uint8_t injected[32];
+        memset(injected, 'I', sizeof(injected));
+        s_inject_on_write = 0;
+        s_injected_write_len = (uint16_t) shell_log_isr(&s_sh, injected, sizeof(injected));
+    }
+}
+
 static void setup_shell(void)
 {
     mock_write_reset();
@@ -84,6 +100,8 @@ static void setup_shell(void)
     s_lock_count   = 0;
     s_unlock_count = 0;
     s_last_unlock_state = 0;
+    s_injected_write_len = 0;
+    s_inject_on_write = 0;
 }
 
 void setUp(void)
@@ -311,6 +329,26 @@ void test_log_drain_wrap_around(void)
     TEST_ASSERT_TRUE(mock_write_contains("XYZ"));
 }
 
+void test_log_drain_releases_queue_before_slow_write(void)
+{
+    uint8_t initial[SHELL_LOG_QUEUE_SIZE - 6u];
+    memset(initial, 'A', sizeof(initial));
+
+    shell_log_isr(&s_sh, initial, sizeof(initial));
+    s_sh.write = slow_write_inject_isr;
+    s_inject_on_write = 1;
+
+    shell_log_drain(&s_sh);
+
+    TEST_ASSERT_EQUAL_UINT16(32, s_injected_write_len);
+    TEST_ASSERT_EQUAL_UINT32(0, s_sh.log_dropped_total);
+
+    s_sh.write = mock_write;
+    mock_write_reset();
+    shell_log_drain(&s_sh);
+    TEST_ASSERT_EQUAL_UINT16(32, mock_write_len());
+}
+
 /* =================================================================
  * 主入口
  * ================================================================= */
@@ -352,6 +390,7 @@ int main(void)
     /* shell_log_drain 丢弃报告 */
     RUN_TEST(test_log_drain_drop_report_once);
     RUN_TEST(test_log_drain_wrap_around);
+    RUN_TEST(test_log_drain_releases_queue_before_slow_write);
 
     return UNITY_END();
 }

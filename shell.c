@@ -39,6 +39,7 @@
 #define STR_PERM_DENIED     "Permission denied\r\n"
 #define STR_VAR_READONLY    "Variable is readonly\r\n"
 #define STR_VAR_CANT_MODIFY "Cannot modify string variable\r\n"
+#define STR_VAR_INVALID     "Invalid variable value\r\n"
 #define STR_USAGE_VAR       "Usage: var <name> [value]\r\n"
 #define STR_USAGE_LOGIN     "Usage: login <user> [password]\r\n"
 #define STR_VAR_NOT_FOUND   "Variable '%s' not found\r\n"
@@ -1014,35 +1015,44 @@ int cmd_history(int argc, char* argv[])
 #if SHELL_USING_VAR
 
 /* 解析字符串为数值 (支持十进制和十六进制) */
-static int32_t parse_number(const char* str, uint8_t* is_float, float* fval)
+static int parse_number(const char* str, uint8_t* is_float, int32_t* ival, float* fval)
 {
     *is_float = 0;
+    *ival     = 0;
     *fval     = 0.0f;
 
     if (!str || !str[0])
     {
-        return 0;
+        return -1;
     }
 
-    /* 检查是否有小数点 */
     const char* scan = str;
     while (*scan)
     {
-        if (*scan == '.')
+        if (*scan == '.' || *scan == 'e' || *scan == 'E')
         {
+            char*  end   = NULL;
+            double value = strtod(str, &end);
+            if (end == str || *end != '\0')
+            {
+                return -1;
+            }
             *is_float = 1;
-            *fval     = (float) atof(str);
+            *fval     = (float) value;
             return 0;
         }
         scan++;
     }
 
-    /* 整数: 支持 0x 前缀 */
-    if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
+    char* end   = NULL;
+    long  value = strtol(str, &end, 0);
+    if (end == str || *end != '\0')
     {
-        return (int32_t) strtol(str, NULL, 16);
+        return -1;
     }
-    return (int32_t) atoi(str);
+
+    *ival = (int32_t) value;
+    return 0;
 }
 
 /* 查找变量 */
@@ -1134,20 +1144,40 @@ int cmd_var(int argc, char* argv[])
 
     uint8_t is_float;
     float   fval;
-    int32_t ival = parse_number(argv[2], &is_float, &fval);
+    int32_t ival;
+    if (parse_number(argv[2], &is_float, &ival, &fval) != 0)
+    {
+        shell_print(sh, STR_VAR_INVALID);
+        return -1;
+    }
 
     switch (var->type)
     {
         case SHELL_VAR_INT:
+            if (is_float)
+            {
+                shell_print(sh, STR_VAR_INVALID);
+                return -1;
+            }
             *(int*) var->ptr = ival;
             break;
         case SHELL_VAR_UINT:
+            if (is_float)
+            {
+                shell_print(sh, STR_VAR_INVALID);
+                return -1;
+            }
             *(unsigned int*) var->ptr = (unsigned int) ival;
             break;
         case SHELL_VAR_FLOAT:
             *(float*) var->ptr = is_float ? fval : (float) ival;
             break;
         case SHELL_VAR_BOOL:
+            if (is_float)
+            {
+                shell_print(sh, STR_VAR_INVALID);
+                return -1;
+            }
             *(uint8_t*) var->ptr = (ival != 0) ? 1 : 0;
             break;
         case SHELL_VAR_STRING:

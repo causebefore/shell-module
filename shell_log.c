@@ -9,6 +9,7 @@
  */
 #include "shell.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #if SHELL_USING_LOG_QUEUE
@@ -17,6 +18,33 @@
 #if (SHELL_LOG_QUEUE_SIZE & (SHELL_LOG_QUEUE_SIZE - 1)) != 0
     #error "SHELL_LOG_QUEUE_SIZE must be a power of 2"
 #endif
+
+static uint32_t shell_log_lock(shell_t* sh)
+{
+    if (sh && sh->critical_enter && sh->critical_exit)
+    {
+        return sh->critical_enter();
+    }
+    return 0u;
+}
+
+static void shell_log_unlock(shell_t* sh, uint32_t state)
+{
+    if (sh && sh->critical_enter && sh->critical_exit)
+    {
+        sh->critical_exit(state);
+    }
+}
+
+static uint16_t shell_strnlen_isr(const char* s, uint16_t max_len)
+{
+    uint16_t len = 0;
+    while (len < max_len && s[len] != '\0')
+    {
+        len++;
+    }
+    return len;
+}
 
 /**
  * @brief 向日志队列写入原始数据 (ISR安全)
@@ -33,6 +61,7 @@ int shell_log_isr(shell_t* sh, const uint8_t* data, uint16_t len)
     }
 
     uint16_t written = 0;
+    uint32_t lock_state = shell_log_lock(sh);
     uint16_t head    = sh->log_head;
 
     for (uint16_t i = 0; i < len; i++)
@@ -51,6 +80,7 @@ int shell_log_isr(shell_t* sh, const uint8_t* data, uint16_t len)
 
     __asm volatile("" ::: "memory"); /* 确保数据写入先于 head 更新 */
     sh->log_head = head;
+    shell_log_unlock(sh, lock_state);
     return (int) written;
 }
 
@@ -67,7 +97,7 @@ int shell_log_text_isr(shell_t* sh, const char* s)
         return 0;
     }
 
-    uint16_t len = (uint16_t) strlen(s);
+    uint16_t len = shell_strnlen_isr(s, SHELL_LOG_QUEUE_SIZE - 1);
     return shell_log_isr(sh, (const uint8_t*) s, len);
 }
 
@@ -82,9 +112,11 @@ void shell_log_drain(shell_t* sh)
         return;
     }
 
+    uint32_t lock_state = shell_log_lock(sh);
     uint16_t tail = sh->log_tail;
     uint16_t head = sh->log_head;
     __asm volatile("" ::: "memory"); /* 确保先读取 head 再访问数据 */
+    shell_log_unlock(sh, lock_state);
 
     if (tail == head)
     {
@@ -98,8 +130,10 @@ void shell_log_drain(shell_t* sh)
      */
     if (sh->log_dropped_total != sh->log_dropped_reported)
     {
+        lock_state = shell_log_lock(sh);
         uint16_t dropped = sh->log_dropped_total - sh->log_dropped_reported;
         sh->log_dropped_reported = sh->log_dropped_total;
+        shell_log_unlock(sh, lock_state);
 
         char drop_msg[48];
         int  n = snprintf(drop_msg, sizeof(drop_msg),
@@ -135,7 +169,9 @@ void shell_log_drain(shell_t* sh)
     }
 
     __asm volatile("" ::: "memory"); /* 确保数据读取完成后再更新 tail */
+    lock_state = shell_log_lock(sh);
     sh->log_tail = head;
+    shell_log_unlock(sh, lock_state);
 }
 
 #endif /* SHELL_USING_LOG_QUEUE */

@@ -5,6 +5,8 @@
 
 #include "shell.h"
 
+#include <stddef.h>  /* NULL */
+
 /* ==================== 用户命令示例 ==================== */
 
 static int cmd_test(int argc, char* argv[])

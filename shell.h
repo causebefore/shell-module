@@ -71,10 +71,15 @@ typedef struct
 typedef int (*shell_password_verify_fn_t)(const shell_user_t* user, const char* input_password);
 #endif
 
+typedef uint32_t (*shell_critical_enter_fn_t)(void);
+typedef void (*shell_critical_exit_fn_t)(uint32_t state);
+
 /* Shell配置结构体 */
 typedef struct
 {
     void (*write)(const char* data, uint16_t len);  /* 必须实现 */
+    shell_critical_enter_fn_t critical_enter;        /* 可选: 进入临界区 */
+    shell_critical_exit_fn_t  critical_exit;         /* 可选: 退出临界区 */
 #if SHELL_USING_AUTH
     shell_password_verify_fn_t password_verify;      /* 可选，自定义密码验证 */
 #endif
@@ -311,6 +316,8 @@ typedef struct
 
     void (*write)(const char* data, uint16_t len);
     int (*read)(char* data, uint16_t len);
+    shell_critical_enter_fn_t critical_enter;
+    shell_critical_exit_fn_t  critical_exit;
 } shell_t;
 
 /* 全局shell指针 */
@@ -371,7 +378,7 @@ int  cmd_whoami(int argc, char* argv[]);
 
 /* 使用导出命令初始化 (配合 SHELL_EXPORT_CMD 宏，需链接脚本支持) */
 #if SHELL_USING_CMD_EXPORT
-    #define shell_init_export(sh, write) shell_init(sh, &(shell_config_t){.write = write})
+    #define shell_init_export(sh, w) shell_init(sh, &(shell_config_t){.write = w})
 #endif
 
 #endif

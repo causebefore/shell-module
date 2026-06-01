@@ -58,6 +58,21 @@ uint16_t g_test_var_count = 1;
 /* ==================== 测试夹具 ==================== */
 
 static shell_t s_sh;
+static uint16_t s_lock_count;
+static uint16_t s_unlock_count;
+static uint32_t s_last_unlock_state;
+
+static uint32_t test_critical_enter(void)
+{
+    s_lock_count++;
+    return 0x55AAu;
+}
+
+static void test_critical_exit(uint32_t state)
+{
+    s_unlock_count++;
+    s_last_unlock_state = state;
+}
 
 static void setup_shell(void)
 {
@@ -66,6 +81,9 @@ static void setup_shell(void)
     shell_init(&s_sh, &cfg);
     s_sh.read      = mock_read;
     s_sh.is_inited = 1;
+    s_lock_count   = 0;
+    s_unlock_count = 0;
+    s_last_unlock_state = 0;
 }
 
 void setUp(void)
@@ -104,6 +122,23 @@ void test_log_isr_multiple_writes(void)
     shell_log_isr(&s_sh, (const uint8_t*) "CD", 2);
     shell_log_drain(&s_sh);
     TEST_ASSERT_TRUE(mock_write_contains("ABCD"));
+}
+
+void test_log_isr_uses_configured_critical_section(void)
+{
+    shell_config_t cfg = {
+        .write = mock_write,
+        .critical_enter = test_critical_enter,
+        .critical_exit = test_critical_exit,
+    };
+    shell_init(&s_sh, &cfg);
+
+    int written = shell_log_isr(&s_sh, (const uint8_t*) "AB", 2);
+
+    TEST_ASSERT_EQUAL_INT(2, written);
+    TEST_ASSERT_EQUAL_UINT16(1, s_lock_count);
+    TEST_ASSERT_EQUAL_UINT16(1, s_unlock_count);
+    TEST_ASSERT_EQUAL_UINT32(0x55AAu, s_last_unlock_state);
 }
 
 /* =================================================================
@@ -278,6 +313,7 @@ int main(void)
     RUN_TEST(test_log_isr_write_basic);
     RUN_TEST(test_log_isr_write_and_drain);
     RUN_TEST(test_log_isr_multiple_writes);
+    RUN_TEST(test_log_isr_uses_configured_critical_section);
 
     /* shell_log_isr 空指针防护 */
     RUN_TEST(test_log_isr_null_shell);

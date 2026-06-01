@@ -757,7 +757,9 @@ void shell_init(shell_t* sh, const shell_config_t* cfg)
     }
 
     memset(sh, 0, sizeof(shell_t));
-    sh->write = cfg->write;
+    sh->write          = cfg->write;
+    sh->critical_enter = cfg->critical_enter;
+    sh->critical_exit  = cfg->critical_exit;
 
 #if SHELL_USING_CMD_EXPORT
     sh->cmds    = SHELL_CMD_LIST();

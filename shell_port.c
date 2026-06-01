@@ -6,28 +6,64 @@
  */
 
 #include "shell.h"
+#include "main.h"  /* STM32 HAL: USART3, USART_SR_TXE, USART_CR1_RXNEIE 等 */
+
+#ifndef SHELL_PORT_TX_TIMEOUT
+#define SHELL_PORT_TX_TIMEOUT 1000000u
+#endif
 
 /* Shell实例 */
 static shell_t s_shell;
 
 /* ==================== 硬件IO层 ==================== */
 
+static uint32_t shell_port_critical_enter(void)
+{
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    return primask;
+}
+
+static void shell_port_critical_exit(uint32_t state)
+{
+    __set_PRIMASK(state);
+}
+
+static int uart_wait_flag(uint32_t flag)
+{
+    uint32_t timeout = SHELL_PORT_TX_TIMEOUT;
+    while ((USART3->SR & flag) == 0u)
+    {
+        if (timeout == 0u)
+        {
+            return 0;
+        }
+        timeout--;
+    }
+    return 1;
+}
+
 /**
  * @brief Shell写函数 - 阻塞发送
+ * @note  仅允许在主循环/任务上下文调用，不要在ISR中直接打印。
  */
 static void uart_write(const char* data, uint16_t len)
 {
+    if (!data)
+    {
+        return;
+    }
+
     /* 阻塞发送，简单可靠 */
     for (uint16_t i = 0; i < len; i++)
     {
-        /* 等待发送寄存器空 */
-        while (!(USART3->SR & USART_SR_TXE))
-            ;
-        USART3->DR = data[i];
+        if (!uart_wait_flag(USART_SR_TXE))
+        {
+            return;
+        }
+        USART3->DR = (uint8_t) data[i];
     }
-    /* 等待发送完成 */
-    while (!(USART3->SR & USART_SR_TC))
-        ;
+    (void) uart_wait_flag(USART_SR_TC);
 }
 
 /* ==================== 中断处理 ==================== */
@@ -56,7 +92,15 @@ extern void shell_user_init(shell_t* sh);
  */
 void my_shell_init(void)
 {
-    shell_init_export(&s_shell, uart_write);
+    shell_config_t cfg = {
+        .write = uart_write,
+        .critical_enter = shell_port_critical_enter,
+        .critical_exit = shell_port_critical_exit,
+#if SHELL_USING_AUTH
+        .password_verify = NULL,
+#endif
+    };
+    shell_init(&s_shell, &cfg);
 
 #if SHELL_USING_AUTH
     shell_user_init(&s_shell);

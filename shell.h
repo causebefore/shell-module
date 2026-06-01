@@ -57,7 +57,6 @@ typedef struct
 typedef struct
 {
     const char* name;       /* 用户名 */
-    const char* password;   /* 密码 (空字符串=无密码) */
     uint8_t     permission; /* 权限掩码 */
 } shell_user_t;
 
@@ -81,7 +80,7 @@ typedef struct
     shell_critical_enter_fn_t critical_enter;        /* 可选: 进入临界区 */
     shell_critical_exit_fn_t  critical_exit;         /* 可选: 退出临界区 */
 #if SHELL_USING_AUTH
-    shell_password_verify_fn_t password_verify;      /* 可选，自定义密码验证 */
+    shell_password_verify_fn_t password_verify;      /* 可选，未设置时登录失败 */
 #endif
     /* 可扩展：未来可添加其他配置项 */
 } shell_config_t;

@@ -175,23 +175,22 @@ void shell_log_printf(const char* fmt, ...)
  */
 static int custom_password_verify(const shell_user_t* user, const char* input_password)
 {
-    /* 示例: 使用 strcmp 进行明文比较 (仅用于调试) */
     (void) user;
     (void) input_password;
 
-    /* 实际应用中可使用:
+    /* 密码策略必须由项目接管，例如:
      * - 哈希比较 (SHA-256 等)
      * - 外部存储查询 (EEPROM、Flash)
      * - 网络认证 (LDAP、RADIUS)
      */
 
-    return -1; /* 默认拒绝，使用默认验证 */
+    return -1; /* 默认拒绝，替换为项目自己的验证逻辑 */
 }
 
 /* 用户列表 */
 static const shell_user_t s_users[] = {
-    {.name = "admin", .password = (const char*) (uintptr_t) 0xB888BBCFU, .permission = SHELL_PERM_ADMIN},
-    {.name = "user",  .password = (const char*) (uintptr_t) 0x0U,        .permission = SHELL_PERM_USER },
+    {.name = "admin", .permission = SHELL_PERM_ADMIN},
+    {.name = "user",  .permission = SHELL_PERM_USER },
 };
 
 #endif /* SHELL_USING_AUTH */
@@ -231,7 +230,7 @@ void shell_port_init(void)
     shell_config_t cfg = {
         .write = shell_write,
 #if SHELL_USING_AUTH
-        .password_verify = NULL,  /* 使用默认验证，或设置 custom_password_verify */
+        .password_verify = custom_password_verify,
 #endif
     };
 

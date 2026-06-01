@@ -48,8 +48,6 @@
 /* 用户权限配置 */
 #if SHELL_USING_AUTH
     #define SHELL_USER_MAX       4  /* 最大用户数量 */
-    #define SHELL_PASSWORD_SIZE  16 /* 密码最大长度 */
-    #define SHELL_USING_HASH_PWD 1  /* 使用哈希密码 (不存储明文) */
 #endif
 
 /* 按键定义 */

@@ -109,7 +109,7 @@ shell_printf_color(&sh, ANSI_COLOR_GREEN, "Value: %d\r\n", 42);
 
 ### 密码验证回调
 
-自定义密码验证逻辑 (如 LDAP、数据库查询)：
+密码验证必须由 `password_verify` 接管。未设置回调时，所有用户登录都会失败。
 
 ```c
 static int my_verify(const shell_user_t* user, const char* pwd)
@@ -120,7 +120,7 @@ static int my_verify(const shell_user_t* user, const char* pwd)
 
 shell_set_password_verify(&sh, my_verify);
 
-// 恢复默认验证
+// 清除验证回调，登录将失败
 shell_set_password_verify(&sh, NULL);
 ```
 

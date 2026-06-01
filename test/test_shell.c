@@ -101,11 +101,28 @@ uint16_t g_test_cmd_count = TEST_CMD_COUNT;
 /* ==================== 测试用用户表 ==================== */
 
 static const shell_user_t s_test_users[] = {
-    {.name = "admin", .password = (const char*) (uintptr_t) 0xB888BBCFU, .permission = SHELL_PERM_ADMIN},
-    {.name = "user",  .password = (const char*) (uintptr_t) 0x0U,        .permission = SHELL_PERM_USER },
+    {.name = "admin", .permission = SHELL_PERM_ADMIN},
+    {.name = "user",  .permission = SHELL_PERM_USER },
 };
 
 #define TEST_USER_COUNT (sizeof(s_test_users) / sizeof(s_test_users[0]))
+
+static int test_password_verify(const shell_user_t* user, const char* input_password)
+{
+    if (!user || !input_password)
+    {
+        return -1;
+    }
+    if (strcmp(user->name, "user") == 0 && strcmp(input_password, "") == 0)
+    {
+        return 0;
+    }
+    if (strcmp(user->name, "admin") == 0 && strcmp(input_password, "admin") == 0)
+    {
+        return 0;
+    }
+    return -1;
+}
 
 /* ==================== 测试夹具 ==================== */
 
@@ -114,7 +131,10 @@ static shell_t s_sh;
 static void setup_shell(void)
 {
     mock_write_reset();
-    shell_config_t cfg = {.write = mock_write};
+    shell_config_t cfg = {
+        .write = mock_write,
+        .password_verify = test_password_verify,
+    };
     shell_init(&s_sh, &cfg);
     s_sh.read = mock_read;
     shell_set_users(&s_sh, s_test_users, TEST_USER_COUNT);

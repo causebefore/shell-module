@@ -4,7 +4,7 @@
  *
  * 覆盖范围:
  *   - shell_set_password_verify  基本功能 (设置自定义回调)
- *   - shell_set_password_verify  NULL参数 (恢复默认验证)
+ *   - shell_set_password_verify  NULL参数 (禁用登录验证)
  *   - 自定义回调在 shell_login 中的调用
  *
  * 构建方式 (主机端GCC):
@@ -58,8 +58,8 @@ uint16_t g_test_var_count = 1;
 /* ==================== 测试用用户表 ==================== */
 
 static const shell_user_t s_test_users[] = {
-    {.name = "admin", .password = (const char*) (uintptr_t) 0xB888BBCFU, .permission = SHELL_PERM_ADMIN},
-    {.name = "user",  .password = (const char*) (uintptr_t) 0x0U,        .permission = SHELL_PERM_USER },
+    {.name = "admin", .permission = SHELL_PERM_ADMIN},
+    {.name = "user",  .permission = SHELL_PERM_USER },
 };
 
 #define TEST_USER_COUNT (sizeof(s_test_users) / sizeof(s_test_users[0]))
@@ -151,13 +151,13 @@ void test_set_password_verify_called_per_login(void)
  * 测试组2: shell_set_password_verify NULL参数
  * ================================================================= */
 
-void test_set_password_verify_null_restores_default(void)
+void test_set_password_verify_null_clears_verifier(void)
 {
     /* 先设置自定义回调 */
     shell_set_password_verify(&s_sh, custom_verify_always_pass);
     TEST_ASSERT_EQUAL_PTR(custom_verify_always_pass, s_sh.password_verify);
 
-    /* 设置NULL恢复默认 */
+    /* 设置NULL会清除 verifier，后续登录不再有内置兜底 */
     shell_set_password_verify(&s_sh, NULL);
     TEST_ASSERT_NULL(s_sh.password_verify);
 }
@@ -174,15 +174,17 @@ void test_set_password_verify_null_both(void)
     shell_set_password_verify(NULL, NULL);
 }
 
-void test_login_after_reset_to_default(void)
+void test_login_without_password_verify_fails(void)
 {
     /* 设置自定义回调再清除 */
     shell_set_password_verify(&s_sh, custom_verify_always_pass);
     shell_set_password_verify(&s_sh, NULL);
 
-    /* user 用户无密码，使用默认验证应成功 */
+    /* 没有 password_verify 时不允许使用任何内置密码逻辑登录 */
     int ret = shell_login(&s_sh, "user", "");
-    TEST_ASSERT_EQUAL_INT(0, ret);
+    TEST_ASSERT_EQUAL_INT(-2, ret);
+    TEST_ASSERT_NULL(s_sh.cur_user);
+    TEST_ASSERT_EQUAL_UINT8(0, s_sh.is_checked);
     /* 自定义回调不应被调用 */
     TEST_ASSERT_EQUAL_INT(0, s_verify_called);
 }
@@ -217,10 +219,10 @@ int main(void)
     RUN_TEST(test_set_password_verify_called_per_login);
 
     /* shell_set_password_verify NULL参数 */
-    RUN_TEST(test_set_password_verify_null_restores_default);
+    RUN_TEST(test_set_password_verify_null_clears_verifier);
     RUN_TEST(test_set_password_verify_null_shell);
     RUN_TEST(test_set_password_verify_null_both);
-    RUN_TEST(test_login_after_reset_to_default);
+    RUN_TEST(test_login_without_password_verify_fails);
 
     /* 通过配置结构体设置 */
     RUN_TEST(test_init_with_password_verify);

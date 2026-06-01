@@ -1189,53 +1189,13 @@ int cmd_vars(int argc, char* argv[])
 
 #if SHELL_USING_AUTH
 
-    #if SHELL_USING_HASH_PWD
-/*
- * 简单哈希函数 (DJB2)
- * 注意: DJB2 为非密码学哈希, 32位空间存在碰撞风险。
- * 此认证仅用于调试防误操作, 不适合安全关键场景。
- */
-static uint32_t shell_hash(const char* str)
+static int verify_password(shell_t* sh, const shell_user_t* user, const char* input_password)
 {
-    uint32_t hash = 5381;
-    int      ch;
-    while ((ch = *str++))
-    {
-        hash = ((hash << 5) + hash) + ch; /* hash * 33 + ch */
-    }
-    return hash;
-}
-    #endif
-
-static int verify_password(const shell_user_t* user, const char* input_password)
-{
-    if (!user || !input_password)
+    if (!sh || !user || !input_password || !sh->password_verify)
     {
         return -1;
     }
-
-    /* 如果设置了自定义验证回调，使用回调 */
-    if (g_shell && g_shell->password_verify)
-    {
-        return g_shell->password_verify(user, input_password);
-    }
-
-    /* 默认验证逻辑 */
-    #if SHELL_USING_HASH_PWD
-    uint32_t stored_hash = (uint32_t)(uintptr_t)user->password;
-    if (stored_hash == 0)
-    {
-        return 0; /* 无密码用户 */
-    }
-    uint32_t hash = shell_hash(input_password);
-    return (hash == stored_hash) ? 0 : -1;
-    #else
-    if (user->password[0] == '\0')
-    {
-        return 0; /* 无密码用户 */
-    }
-    return (strcmp(user->password, input_password) == 0) ? 0 : -1;
-    #endif
+    return sh->password_verify(user, input_password);
 }
 
 void shell_set_users(shell_t* sh, const shell_user_t* users, uint8_t cnt)
@@ -1266,8 +1226,8 @@ int shell_login(shell_t* sh, const char* name, const char* password)
         }
         if (strcmp(sh->users[i].name, name) == 0)
         {
-            /* 使用 verify_password 进行密码验证 */
-            if (password && verify_password(&sh->users[i], password) == 0)
+            const char* input_password = password ? password : "";
+            if (verify_password(sh, &sh->users[i], input_password) == 0)
             {
                 sh->cur_user   = &sh->users[i];
                 sh->is_checked = 1;

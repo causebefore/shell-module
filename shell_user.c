@@ -6,6 +6,7 @@
 #include "shell.h"
 
 #include <stddef.h>  /* NULL */
+#include <string.h>
 
 /* ==================== 用户命令示例 ==================== */
 
@@ -64,30 +65,42 @@ SHELL_EXPORT_CMD_LIST(mode, "Set FOC mode", cmd_mode, SHELL_PERM_NONE, s_mode_op
 
 #if SHELL_USING_AUTH
 
-#if SHELL_USING_HASH_PWD
-#define HASH_ROOT  0x7DD1705AUL /* hash("123456") */
-#define HASH_ADMIN 0x0F12FC8EUL /* hash("admin")  */
-#define HASH_NONE  0x00000000UL /* 无密码 */
-
 static const shell_user_t s_shell_users[] = {
-    {"root",  (const char*) (uintptr_t) HASH_ROOT,  SHELL_PERM_ROOT },
-    {"admin", (const char*) (uintptr_t) HASH_ADMIN, SHELL_PERM_ADMIN},
-    {"guest", (const char*) (uintptr_t) HASH_NONE,  SHELL_PERM_USER },
+    {"root",  SHELL_PERM_ROOT },
+    {"admin", SHELL_PERM_ADMIN},
+    {"guest", SHELL_PERM_USER },
 };
-#else
-static const shell_user_t s_shell_users[] = {
-    {"root",  "123456", SHELL_PERM_ROOT },
-    {"admin", "admin",  SHELL_PERM_ADMIN},
-    {"guest", "",       SHELL_PERM_USER },
-};
-#endif
 
 #define USER_COUNT (sizeof(s_shell_users) / sizeof(s_shell_users[0]))
+
+static int shell_user_password_verify(const shell_user_t* user, const char* input_password)
+{
+    if (!user || !input_password)
+    {
+        return -1;
+    }
+
+    if (strcmp(user->name, "root") == 0)
+    {
+        return (strcmp(input_password, "123456") == 0) ? 0 : -1;
+    }
+    if (strcmp(user->name, "admin") == 0)
+    {
+        return (strcmp(input_password, "admin") == 0) ? 0 : -1;
+    }
+    if (strcmp(user->name, "guest") == 0)
+    {
+        return (input_password[0] == '\0') ? 0 : -1;
+    }
+
+    return -1;
+}
 
 /* 设置用户表的便捷函数 */
 void shell_user_init(shell_t* sh)
 {
     shell_set_users(sh, s_shell_users, USER_COUNT);
+    shell_set_password_verify(sh, shell_user_password_verify);
 }
 
 #endif /* SHELL_USING_AUTH */

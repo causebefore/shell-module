@@ -288,8 +288,8 @@ typedef struct
     uint8_t log_buf[SHELL_LOG_QUEUE_SIZE];
     volatile uint16_t log_head;           // ISR写
     volatile uint16_t log_tail;           // 主循环读
-    volatile uint16_t log_dropped_total;  // 丢弃计数
-    uint16_t log_dropped_reported;        // 已报告的丢弃计数
+    volatile uint32_t log_dropped_total;  // 丢弃计数
+    uint32_t log_dropped_reported;        // 已报告的丢弃计数
 #endif
 
     const shell_cmd_t* cmds;

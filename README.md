@@ -19,43 +19,56 @@
 
 ### 最小移植
 
-只需实现一个写回调函数：
+推荐通过 `shell_port_backend_t` 接入底层传输，shell 核心只负责命令解析：
 
 ```c
-// 串口发送示例
-static void uart_write(const char* data, uint16_t len)
+static void console_write(void* ctx, const char* data, uint16_t len)
 {
+    (void) ctx;
     for (uint16_t i = 0; i < len; i++)
     {
+        /* 实际项目应加入超时，避免外设异常时死等 */
         while (!(USART1->SR & USART_SR_TXE));
         USART1->DR = data[i];
     }
 }
 
-// 初始化
-shell_t sh;
-shell_config_t cfg = { .write = uart_write };
-shell_init(&sh, &cfg);
+static int console_start(void* ctx)
+{
+    (void) ctx;
+    USART1->CR1 |= USART_CR1_RXNEIE;
+    return 0;
+}
+
+static const shell_port_backend_t backend = {
+    .ctx = NULL,
+    .write = console_write,
+    .critical_enter = NULL,
+    .critical_exit = NULL,
+    .start = console_start,
+};
+
+shell_port_init(&backend);
 ```
 
 ### 主循环集成
 
 ```c
-// 方式1: 提供 read 回调
-sh.read = uart_read;  // int uart_read(char* buf, uint16_t max_len)
-while (1) { shell_task(&sh); }
-
-// 方式2: 中断中推送到环形缓冲区
 void USART1_IRQHandler(void)
 {
     if (USART1->SR & USART_SR_RXNE)
     {
         uint8_t ch = USART1->DR;
-        shell_rx_push(&sh, ch);
+        shell_port_rx_from_isr(ch);
     }
 }
-while (1) { shell_task(&sh); }
+
+while (1) { shell_port_task(); }
 ```
+
+当前工程的 STM32F407 USART3 裸机 console 后端在 `bsp_console.c` 中：
+`bsp_console_init()` 初始化 shell 和 RXNE 中断，`bsp_console_task()` 在主循环调用，
+`bsp_console_usart3_irq_handler()` 在 `USART3_IRQHandler` 中调用。
 
 ### STM32 HAL 库移植
 
@@ -140,7 +153,7 @@ static int cmd_hello(int argc, char* argv[])
 SHELL_EXPORT_CMD(hello, "Say hello", cmd_hello, SHELL_PERM_NONE);
 ```
 
-需要链接脚本支持 `.shell_cmd` 段。
+Keil 工程需要链接脚本提供 `SHELL_CMD` / `SHELL_VAR` execution region。
 
 ## 运行测试
 

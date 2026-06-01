@@ -131,13 +131,13 @@ void shell_log_drain(shell_t* sh)
     if (sh->log_dropped_total != sh->log_dropped_reported)
     {
         lock_state = shell_log_lock(sh);
-        uint16_t dropped = sh->log_dropped_total - sh->log_dropped_reported;
+        uint32_t dropped = sh->log_dropped_total - sh->log_dropped_reported;
         sh->log_dropped_reported = sh->log_dropped_total;
         shell_log_unlock(sh, lock_state);
 
         char drop_msg[48];
         int  n = snprintf(drop_msg, sizeof(drop_msg),
-                          "\r\n[log dropped %u bytes]\r\n", dropped);
+                          "\r\n[log dropped %lu bytes]\r\n", (unsigned long) dropped);
         if (n > 0)
         {
             if (n > (int) sizeof(drop_msg) - 1)

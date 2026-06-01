@@ -168,7 +168,7 @@ void test_init_sets_callbacks(void)
     TEST_ASSERT_EQUAL_PTR(mock_write, sh.write);
     TEST_ASSERT_EQUAL_UINT16(TEST_CMD_COUNT, sh.cmd_cnt);
     TEST_ASSERT_EQUAL_UINT8(0, sh.cmd_len);
-    TEST_ASSERT_EQUAL_UINT8(1, sh.is_inited);
+    TEST_ASSERT_EQUAL_UINT8(0, sh.is_inited);
 }
 
 void test_init_clears_struct(void)
@@ -181,7 +181,7 @@ void test_init_clears_struct(void)
     TEST_ASSERT_EQUAL_UINT16(0, sh.cmd_pos);
     TEST_ASSERT_EQUAL_UINT8(0, sh.esc_state);
     TEST_ASSERT_EQUAL_UINT8(0, sh.is_active);
-    TEST_ASSERT_EQUAL_UINT8(1, sh.is_inited);
+    TEST_ASSERT_EQUAL_UINT8(0, sh.is_inited);
 }
 
 /* =================================================================
@@ -797,7 +797,6 @@ void test_task_first_call_shows_banner(void)
     shell_config_t cfg = {.write = mock_write};
     shell_init(&sh, &cfg);
     sh.read      = mock_read;
-    sh.is_inited = 0; /* 强制触发 banner 显示 */
     mock_write_reset();
     mock_read_set("", 0);
     shell_task(&sh);

@@ -190,6 +190,16 @@ void test_log_isr_overflow_partial_write(void)
     TEST_ASSERT_TRUE(s_sh.log_dropped_total > 0);
 }
 
+void test_log_isr_drop_counter_does_not_wrap_at_uint16(void)
+{
+    for (uint32_t i = 0; i < 70000u; i++)
+    {
+        shell_log_isr(&s_sh, (const uint8_t*) "A", 1);
+    }
+
+    TEST_ASSERT_TRUE(s_sh.log_dropped_total > 65535u);
+}
+
 void test_log_isr_overflow_drain_reports_drop(void)
 {
     /* 填满队列并触发丢弃 */
@@ -323,6 +333,7 @@ int main(void)
     /* shell_log_isr 缓冲区满丢弃 */
     RUN_TEST(test_log_isr_overflow_discard);
     RUN_TEST(test_log_isr_overflow_partial_write);
+    RUN_TEST(test_log_isr_drop_counter_does_not_wrap_at_uint16);
     RUN_TEST(test_log_isr_overflow_drain_reports_drop);
 
     /* shell_log_text_isr 基本功能 */

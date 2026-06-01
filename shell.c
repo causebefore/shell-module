@@ -770,7 +770,7 @@ void shell_init(shell_t* sh, const shell_config_t* cfg)
     sh->password_verify = cfg->password_verify;
 #endif
 
-    sh->is_inited = 1;
+    sh->is_inited = 0;
     g_shell       = sh;
 }
 

@@ -54,6 +54,12 @@ shell_port_init(&backend);
 ### 主循环集成
 
 ```c
+while (1) { shell_port_task(); }
+```
+
+中断接收模式下，在 ISR 中调用：
+
+```c
 void USART1_IRQHandler(void)
 {
     if (USART1->SR & USART_SR_RXNE)
@@ -62,21 +68,16 @@ void USART1_IRQHandler(void)
         shell_port_rx_from_isr(ch);
     }
 }
-
-while (1) { shell_port_task(); }
 ```
 
-当前工程的 STM32F407 USART3 裸机 console 后端在 `bsp_console.c` 中：
-`bsp_console_init()` 初始化 shell 和 RXNE 中断，`bsp_console_task()` 在主循环调用，
-`bsp_console_usart3_irq_handler()` 在 `USART3_IRQHandler` 中调用。
+也可通过 `read` 回调实现轮询接收（参见示例）。
 
-### STM32 HAL 库移植
+### 移植示例
 
-参考 `examples/stm32_hal/shell_port_hal.c`。
-
-### STM32 标准外设库移植
-
-参考 `examples/stm32_stdperiph/shell_port_stdperiph.c`。
+| 示例                                   | 环境               |
+| -------------------------------------- | ------------------ |
+| `examples/stm32_hal/`                  | STM32 HAL 库       |
+| `examples/stm32_stdperiph/`            | STM32 标准外设库   |
 
 ## 新功能说明
 

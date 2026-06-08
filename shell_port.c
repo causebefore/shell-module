@@ -11,12 +11,7 @@
 static shell_t s_shell;
 static const shell_port_backend_t* s_backend;
 
-static void shell_port_reset(void)
-{
-    s_backend = NULL;
-    memset(&s_shell, 0, sizeof(s_shell));
-    g_shell = NULL;
-}
+/* ==================== trampoline 回调 ==================== */
 
 static void shell_port_write_trampoline(const char* data, uint16_t len)
 {
@@ -24,6 +19,15 @@ static void shell_port_write_trampoline(const char* data, uint16_t len)
     {
         s_backend->write(s_backend->ctx, data, len);
     }
+}
+
+static int shell_port_read_trampoline(char* buf, uint16_t max_len)
+{
+    if (s_backend && s_backend->read)
+    {
+        return s_backend->read(s_backend->ctx, buf, max_len);
+    }
+    return 0;
 }
 
 static uint32_t shell_port_critical_enter_trampoline(void)
@@ -41,6 +45,15 @@ static void shell_port_critical_exit_trampoline(uint32_t state)
     {
         s_backend->critical_exit(s_backend->ctx, state);
     }
+}
+
+/* ==================== 公共 API ==================== */
+
+static void shell_port_reset(void)
+{
+    s_backend = NULL;
+    memset(&s_shell, 0, sizeof(s_shell));
+    g_shell = NULL;
 }
 
 int shell_port_init(const shell_port_backend_t* backend)
@@ -61,6 +74,12 @@ int shell_port_init(const shell_port_backend_t* backend)
 #endif
     };
     shell_init(&s_shell, &cfg);
+
+    /* 如果 backend 提供了 read 回调, 直接使用 (如 RTT 轮询) */
+    if (backend->read)
+    {
+        s_shell.read = shell_port_read_trampoline;
+    }
 
     if (backend->start)
     {

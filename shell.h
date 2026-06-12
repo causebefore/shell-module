@@ -297,6 +297,7 @@ typedef struct
     uint8_t esc_state;
     uint8_t esc_buf[4];
     uint8_t esc_idx;
+    uint8_t last_was_cr; /* 上一个字符是 CR，用于跳过 \r\n 中的 \n */
     uint8_t is_active; /* 命令执行中标志，用于尾行模式优化 */
     uint8_t is_inited; /* 首次任务初始化标志 */
 

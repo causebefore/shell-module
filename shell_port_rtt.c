@@ -12,6 +12,9 @@
 #include "SEGGER_RTT.h"
 
 #include <stdint.h>
+#if defined(__ARM_ARCH) || defined(__ARMCC_VERSION) || defined(__ICCARM__)
+    #include "cmsis_compiler.h" /* __get_PRIMASK, __disable_irq, __set_PRIMASK */
+#endif
 
 #if SHELL_USING_AUTH
 extern void shell_user_init(shell_t* sh);

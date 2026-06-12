@@ -240,9 +240,15 @@ static void refresh_line(shell_t* sh)
     {
         sh->write(sh->cmd_buf, sh->cmd_len);
     }
-    for (int16_t i = sh->cmd_len - sh->cmd_pos; i > 0; i--)
+    int16_t back = (int16_t) (sh->cmd_len - sh->cmd_pos);
+    if (back > 0)
     {
-        shell_print(sh, ANSI_LEFT);
+        char cur[8];
+        int n = snprintf(cur, sizeof(cur), "\033[%dD", back);
+        if (n > 0)
+        {
+            sh->write(cur, (uint16_t) n);
+        }
     }
 }
 
@@ -534,7 +540,7 @@ static int32_t check_permission(shell_t* sh, const shell_cmd_t* cmd)
 
 static void exec_cmd(shell_t* sh)
 {
-    char*   argv[SHELL_ARG_MAX];
+    char*   argv[SHELL_ARG_MAX + 1];
     int32_t argc = 0;
     char*   ptr  = sh->cmd_buf;
 
@@ -558,6 +564,8 @@ static void exec_cmd(shell_t* sh)
             *ptr++ = '\0';
         }
     }
+
+    argv[argc] = NULL; /* C 标准约定: argv[argc] == NULL */
 
     if (argc == 0)
     {
@@ -653,6 +661,23 @@ static void handle_esc(shell_t* sh, char ch)
     }
 }
 
+/* ==================== 行提交 (公共逻辑) ==================== */
+
+static void commit_line(shell_t* sh)
+{
+    shell_print(sh, STR_CRLF);
+    sh->cmd_buf[sh->cmd_len] = '\0';
+#if SHELL_USING_HISTORY
+    hist_add(sh, sh->cmd_buf);
+    sh->hist_cur = sh->hist_cnt;
+#endif
+    exec_cmd(sh);
+    sh->cmd_len    = 0;
+    sh->cmd_pos    = 0;
+    sh->cmd_buf[0] = '\0';
+    show_prompt(sh);
+}
+
 /* ==================== 字符处理 ==================== */
 
 void shell_input(shell_t* sh, char ch)
@@ -710,18 +735,18 @@ void shell_input(shell_t* sh, char ch)
             break;
 
         case KEY_CR:
+            sh->last_was_cr = 1;
+            commit_line(sh);
+            break;
+
         case KEY_LF:
-            shell_print(sh, STR_CRLF);
-            sh->cmd_buf[sh->cmd_len] = '\0';
-#if SHELL_USING_HISTORY
-            hist_add(sh, sh->cmd_buf);
-            sh->hist_cur = sh->hist_cnt; /* 重置到末尾，下次上键从最新开始 */
-#endif
-            exec_cmd(sh);
-            sh->cmd_len    = 0;
-            sh->cmd_pos    = 0;
-            sh->cmd_buf[0] = '\0';
-            show_prompt(sh);
+            /* 跳过 \r\n 序列中的 \n；单独的 \n 视作回车 */
+            if (sh->last_was_cr)
+            {
+                sh->last_was_cr = 0;
+                break;
+            }
+            commit_line(sh);
             break;
 
         case KEY_CTRL_C:
@@ -787,6 +812,10 @@ void shell_task(shell_t* sh)
         sh->is_inited = 1;
         shell_print(sh, ANSI_CLEAR);
         shell_print(sh, STR_BANNER);
+#if SHELL_USING_LOG_QUEUE
+        /* 先排空调度器启动前积压的日志，再显示提示符，避免日志粘到提示符后面 */
+        shell_log_drain(sh);
+#endif
         show_prompt(sh);
     }
 
@@ -868,10 +897,10 @@ void shell_log(const char* buf, int len)
 
     /*
      * 缓冲区大小: \r(1) + 日志(200) + 提示符(32) + 命令(SHELL_CMD_SIZE)
-     *            + 清行ESC(3) + 光标恢复ESC(SHELL_CMD_SIZE*3)
+     *            + 清行ESC(3) + 批量光标ESC(8)
      */
-#define SHELL_LOG_BUF_SIZE (1 + 200 + 32 + SHELL_CMD_SIZE + 3 + SHELL_CMD_SIZE * 3)
-    char    out_buf[SHELL_LOG_BUF_SIZE];
+#define SHELL_LOG_BUF_SIZE (1 + 200 + 32 + SHELL_CMD_SIZE + 3 + 8)
+    static char out_buf[SHELL_LOG_BUF_SIZE];
     int16_t pos = 0;
 
     /* 回到行首 */
@@ -914,16 +943,22 @@ void shell_log(const char* buf, int len)
         out_buf[pos++] = 'K';
     }
 
-    /* 光标定位 (移回当前位置, 使用快照) */
-    for (uint16_t i = snap_len - snap_pos; i > 0 && pos < (int16_t) sizeof(out_buf) - 4; i--)
+    /* 光标定位 (批量 \033[ND, 使用快照) */
     {
-        out_buf[pos++] = '\033';
-        out_buf[pos++] = '[';
-        out_buf[pos++] = 'D';
+        uint16_t back = snap_len - snap_pos;
+        if (back > 0 && pos < (int16_t) sizeof(out_buf) - 8)
+        {
+            int n = snprintf(&out_buf[pos], sizeof(out_buf) - (size_t) pos, "\033[%uD", back);
+            if (n > 0)
+            {
+                pos += (int16_t) n;
+            }
+        }
     }
 
     /* 一次性发送 */
     sh->write(out_buf, pos);
+#undef SHELL_LOG_BUF_SIZE
 }
 
 /* ==================== 透传模式 ==================== */

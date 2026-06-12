@@ -61,9 +61,9 @@
 #endif
 
 #if SHELL_USING_LOG_QUEUE
-    #define SHELL_LOG_QUEUE_SIZE 256  /* 日志队列大小，必须是2的幂 */
+    #define SHELL_LOG_QUEUE_SIZE 1024  /* 日志队列大小，必须是2的幂 */
     #ifndef SHELL_LOG_DRAIN_CHUNK_SIZE
-        #define SHELL_LOG_DRAIN_CHUNK_SIZE 64 /* 单次复制到临时缓冲区的最大字节数 */
+        #define SHELL_LOG_DRAIN_CHUNK_SIZE 128 /* 单次复制到临时缓冲区的最大字节数 */
     #endif
 #endif
 
